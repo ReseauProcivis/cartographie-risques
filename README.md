@@ -14,8 +14,8 @@ Une adresse sans code, ou avec un code inconnu, affiche « Ce lien n'est pas val
 | Fichier | Rôle |
 |---|---|
 | `index.html`, `app.js`, `store.js`, `styles.css` | l'application (JavaScript sans dépendance) |
-| `referentiel.json` | univers, mesures, risques, échelles : commun à toutes les SACICAP |
-| `societes.json` | menu « Groupe » et « Fonction » du formulaire |
+| `referentiel.json` | univers, mesures, risques, échelles : commun à toutes les SACICAP (v7 du 5 novembre 2026, revue d'après séminaire) |
+| `societes.json` | menu « Fonction » du formulaire |
 | `config.js` | adresse et clé publique Supabase, seuil par défaut, rafraîchissement |
 | `qr.html` | QR code d'une SACICAP : `qr.html?s=<code>` |
 | `supabase/sessions.sql` | table des sessions SACICAP et contrôle des clés, sans aucune clé |
@@ -33,6 +33,10 @@ Même projet Supabase que le séminaire (`carto-risques`), même table `reponses
 Les sessions du séminaire gardent leur fonctionnement. Le script a été éprouvé sur un Postgres local (30 contrôles) avant exécution. La version remplie (clé d'administration, codes et clés des SACICAP) se garde hors du dépôt, qui est public.
 
 Inscrire une SACICAP : une ligne dans `sessions` (code `sacicap-<nom>-<6 caractères au hasard>`, clé de 10 caractères ou plus). Fermer son formulaire : `update public.sessions set ouverte = false where code = '...'`. Ses résultats restent lisibles.
+
+## Une réponse par personne
+
+Depuis le 5 novembre 2026, chacun répond en son nom : prénom, nom, fonction, puis les métiers exercés par la SACICAP. Il n'y a plus de groupe ni de choix de périmètre. Dans la base, la colonne `prenom` porte « Prénom Nom » et la colonne `societe` reste vide. Les résultats donnent la moyenne de toutes les réponses ; le filtre « Répondant » isole celles d'une personne.
 
 ## Sur un même ordinateur
 

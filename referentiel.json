@@ -1,6 +1,6 @@
 {
- "version": "2026-10-14-v6-reponses-guillaume",
- "source": "Référentiel de Guillaume Macher (12 octobre 2026) revu avec les remarques des groupes marchés et fonctions support de l'atelier du 12 octobre, les décisions de la réunion d'équipe Procivis UES-AP du 12 octobre, les arbitrages de Guillaume Macher du 13 octobre sur les neuf points restés ouverts, puis sa relecture de cohérence du 13 octobre (suppression du chapitre Marché, mesures et risques ajoutés, doublons regroupés, nomenclature CODE-M et CODE-R, liens entre mesures et risques), puis ses réponses du 13 octobre au soir (JUR-R4 reclassé en risque maîtrisé, MOA-R2 et MOA-R6 fusionnés)",
+ "version": "2026-11-05-v7-revue-apres-seminaire",
+ "source": "Référentiel de Guillaume Macher (12 octobre 2026) revu avec les remarques des groupes marchés et fonctions support de l'atelier du 12 octobre, les décisions de la réunion d'équipe Procivis UES-AP du 12 octobre, les arbitrages de Guillaume Macher du 13 octobre sur les neuf points restés ouverts, puis sa relecture de cohérence du 13 octobre (suppression du chapitre Marché, mesures et risques ajoutés, doublons regroupés, nomenclature CODE-M et CODE-R, liens entre mesures et risques), puis ses réponses du 13 octobre au soir (JUR-R4 reclassé en risque maîtrisé, MOA-R2 et MOA-R6 fusionnés), puis sa revue d'après séminaire du 28 octobre 2026 (seize lignes : risques GOV-R7, FIN-R8, MOA-R7, MOA-R8, GES-R6 et SYN-R6 créés, AMC-R7 repris par MOA-R8, mesures créées, scindées ou complétées, libellés reformulés)",
  "echelles": {
   "maitrise": [
    {
@@ -181,6 +181,10 @@
     {
      "id": "GOV-M8",
      "texte": "La parité au sein du conseil et des instances est suivie et prise en compte lors du renouvellement des mandats."
+    },
+    {
+     "id": "GOV-M9",
+     "texte": "La satisfaction des clients est mesurée dans tous les métiers et les réclamations sont suivies par la direction."
     }
    ],
    "risques": [
@@ -231,6 +235,13 @@
      "libelle": "Non-respect des recommandations en matière de parité dans les instances",
      "mesures": [
       "GOV-M8"
+     ]
+    },
+    {
+     "id": "GOV-R7",
+     "libelle": "Atteinte à la réputation de la SACICAP ou de la marque Procivis (mécontentement client, mise en cause médiatique)",
+     "mesures": [
+      "GOV-M9"
      ]
     }
    ]
@@ -407,7 +418,7 @@
     },
     {
      "id": "FIN-M3",
-     "texte": "La santé financière des filiales et participations fait l'objet d'un reporting régulier avec seuils d'alerte."
+     "texte": "La santé financière des filiales et participations fait l'objet d'un reporting régulier avec seuils d'alerte. La valeur des titres est revue chaque année à partir des comptes et des plans d'affaires des filiales, et validée avec le commissaire aux comptes."
     },
     {
      "id": "FIN-M4",
@@ -420,12 +431,20 @@
     {
      "id": "FIN-M6",
      "texte": "L'exposition de la SACICAP et de ses filiales à la hausse des coûts de l'énergie est chiffrée et intégrée aux budgets."
+    },
+    {
+     "id": "FIN-M7",
+     "texte": "Un plan pluriannuel des fonds propres mobilisables est présenté au conseil."
+    },
+    {
+     "id": "FIN-M8",
+     "texte": "La part de dette à taux variable est suivie et, le cas échéant, couverte."
     }
    ],
    "risques": [
     {
      "id": "FIN-R1",
-     "libelle": "Dépréciation inadéquate des titres de filiales ou de participations",
+     "libelle": "Dépréciation insuffisante ou tardive des titres de filiales ou de participations (valeur surestimée dans les comptes)",
      "mesures": [
       "FIN-M3"
      ]
@@ -440,9 +459,10 @@
     },
     {
      "id": "FIN-R3",
-     "libelle": "Exposition à la variation des taux d'intérêt",
+     "libelle": "Hausse des taux renchérissant la dette et le coût de portage des opérations",
      "mesures": [
-      "FIN-M4"
+      "FIN-M4",
+      "FIN-M8"
      ]
     },
     {
@@ -469,9 +489,18 @@
     },
     {
      "id": "FIN-R7",
-     "libelle": "Augmentation des coûts de l'énergie",
+     "libelle": "Hausse des coûts de l'énergie dégradant l'équilibre des opérations et les charges des locataires",
      "mesures": [
       "FIN-M6"
+     ],
+     "subi": true
+    },
+    {
+     "id": "FIN-R8",
+     "libelle": "Fonds propres insuffisants pour engager les opérations prévues",
+     "mesures": [
+      "FIN-M7",
+      "FIN-M4"
      ]
     }
    ]
@@ -506,8 +535,12 @@
      "texte": "Les savoir-faire métier (montage d'opérations, gestion, syndic) sont formalisés et transmis (procédures, binômes, tutorat)."
     },
     {
-     "id": "RH-M6",
-     "texte": "Les obligations en matière d'égalité professionnelle femmes-hommes et de prévention et de lutte contre le harcèlement et les discriminations sont respectées et suivies."
+     "id": "RH-M6a",
+     "texte": "L'index de l'égalité professionnelle est publié et suivi."
+    },
+    {
+     "id": "RH-M6b",
+     "texte": "Un dispositif de prévention et de signalement du harcèlement et des discriminations est en place (référent, procédure)."
     },
     {
      "id": "RH-M7",
@@ -557,7 +590,8 @@
      "id": "RH-R6",
      "libelle": "Situation de harcèlement, de discrimination ou manquement à l'égalité professionnelle",
      "mesures": [
-      "RH-M6"
+      "RH-M6a",
+      "RH-M6b"
      ]
     }
    ]
@@ -875,6 +909,14 @@
     {
      "id": "MOA-M8",
      "texte": "La conformité réglementaire et technique des opérations (RE2020, sécurité incendie, accessibilité) est vérifiée par un contrôleur technique et à la réception."
+    },
+    {
+     "id": "MOA-M9",
+     "texte": "Le financement de chaque opération (accord bancaire, garantie financière d'achèvement) est sécurisé avant l'engagement."
+    },
+    {
+     "id": "MOA-M11",
+     "texte": "Une stratégie foncière est formalisée (veille, réserves foncières, partenariats avec les collectivités et les établissements publics fonciers)."
     }
    ],
    "risques": [
@@ -920,9 +962,23 @@
     },
     {
      "id": "MOA-R6",
-     "libelle": "Recours contre un permis ou blocage administratif d'une opération",
+     "libelle": "Refus, retrait ou retard d'une autorisation d'urbanisme, y compris par changement de position de l'État ou de la collectivité",
      "mesures": [
       "MOA-M6"
+     ]
+    },
+    {
+     "id": "MOA-R7",
+     "libelle": "Refus ou retard de financement d'une opération (crédit, garantie financière d'achèvement)",
+     "mesures": [
+      "MOA-M9"
+     ]
+    },
+    {
+     "id": "MOA-R8",
+     "libelle": "Raréfaction et renchérissement du foncier (zéro artificialisation nette, concurrence)",
+     "mesures": [
+      "MOA-M11"
      ]
     }
    ]
@@ -956,7 +1012,15 @@
     },
     {
      "id": "PRO-M5",
-     "texte": "Les plafonds réglementaires du BRS (redevances, plafonds de prix et de ressources, agrément des preneurs) sont respectés et contrôlés."
+     "texte": "Les règles des dispositifs d'accession sociale (BRS, PSLA, TVA réduite, clauses anti-spéculatives) sont respectées et contrôlées : plafonds de prix et de ressources, agrément ou éligibilité des acquéreurs, redevances."
+    },
+    {
+     "id": "PRO-M6",
+     "texte": "Des outils de contrôle sont en place et leur paramétrage est revu chaque année."
+    },
+    {
+     "id": "PRO-M7",
+     "texte": "Les garanties de sécurisation des accédants (rachat, relogement, revente) sont recensées, chiffrées et provisionnées."
     }
    ],
    "risques": [
@@ -998,15 +1062,16 @@
     },
     {
      "id": "PRO-R6",
-     "libelle": "Difficulté de commercialisation ou de revente des logements en BRS",
+     "libelle": "Difficulté de commercialisation, de levée d'option ou de revente des logements en accession sociale (BRS, PSLA)",
      "mesures": [
       "PRO-M2",
-      "PRO-M5"
+      "PRO-M6",
+      "PRO-M7"
      ]
     },
     {
      "id": "PRO-R7",
-     "libelle": "Non-conformité de l'organisme de foncier solidaire ou des opérations en bail réel solidaire (agrément, plafonds de prix et de ressources, comptabilité distincte)",
+     "libelle": "Non-conformité d'une opération d'accession sociale (BRS, PSLA, TVA réduite) ou de l'organisme de foncier solidaire (agrément, plafonds, comptabilité distincte), entraînant reprise d'avantage fiscal ou sanction",
      "mesures": [
       "PRO-M4",
       "PRO-M5"
@@ -1095,12 +1160,6 @@
       "AMC-M3",
       "AMC-M5"
      ]
-    },
-    {
-     "id": "AMC-R7",
-     "libelle": "Contrainte de sobriété foncière réduisant les opportunités",
-     "mesures": [],
-     "subi": true
     },
     {
      "id": "AMC-R8",
@@ -1202,8 +1261,12 @@
      "texte": "Les encaissements de loyers et les reversements aux propriétaires sont sécurisés par une double validation."
     },
     {
-     "id": "GES-M3",
-     "texte": "L'encadrement des loyers et la décence des logements gérés sont suivis mandat par mandat."
+     "id": "GES-M3a",
+     "texte": "La décence et l'encadrement des loyers sont vérifiés avant chaque mise en location."
+    },
+    {
+     "id": "GES-M3b",
+     "texte": "La régularisation annuelle des charges est faite dans les délais et justifiée."
     },
     {
      "id": "GES-M4",
@@ -1212,6 +1275,10 @@
     {
      "id": "GES-M5",
      "texte": "Le portefeuille de mandats est suivi (entrées, résiliations, motifs) et la satisfaction des propriétaires est mesurée."
+    },
+    {
+     "id": "GES-M6",
+     "texte": "Les propriétaires de logements classés F ou G sont informés du calendrier d'interdiction et le conseil donné est tracé."
     }
    ],
    "risques": [
@@ -1225,9 +1292,10 @@
     },
     {
      "id": "GES-R2",
-     "libelle": "Interdiction de louer des logements énergivores gérés (calendrier de la loi Climat et résilience)",
+     "libelle": "Perte de mandats ou mise en cause du gestionnaire liée à l'interdiction de louer les logements énergivores (défaut de conseil au propriétaire)",
      "mesures": [
-      "RSE-M3"
+      "RSE-M3",
+      "GES-M6"
      ]
     },
     {
@@ -1246,9 +1314,16 @@
     },
     {
      "id": "GES-R5",
-     "libelle": "Litige sur la décence, l'insalubrité ou les charges",
+     "libelle": "Mise en cause du gestionnaire pour la location d'un logement non décent ou non conforme (décence, encadrement des loyers, DPE)",
      "mesures": [
-      "GES-M3"
+      "GES-M3a"
+     ]
+    },
+    {
+     "id": "GES-R6",
+     "libelle": "Erreur ou contestation dans la régularisation des charges locatives",
+     "mesures": [
+      "GES-M3b"
      ]
     }
    ]
@@ -1270,7 +1345,7 @@
     },
     {
      "id": "SYN-M2",
-     "texte": "Les travaux votés, les appels de fonds, le fonds travaux et les impayés de charges sont suivis copropriété par copropriété."
+     "texte": "Les travaux votés, les appels de fonds, le fonds travaux et les impayés de charges sont suivis copropriété par copropriété. Une procédure de relance et de recouvrement des impayés est formalisée, avec seuil d'alerte au conseil syndical."
     },
     {
      "id": "SYN-M3",
@@ -1287,6 +1362,10 @@
     {
      "id": "SYN-M6",
      "texte": "L'état technique et la sécurité des immeubles gérés (contrôles périodiques, diagnostics, travaux urgents) sont suivis copropriété par copropriété."
+    },
+    {
+     "id": "SYN-M7",
+     "texte": "Chaque copropriété dispose d'un compte séparé, rapproché chaque mois, avec double validation des paiements."
     }
    ],
    "risques": [
@@ -1300,7 +1379,7 @@
     },
     {
      "id": "SYN-R2",
-     "libelle": "Trésorerie de copropriété défaillante, impayés de charges",
+     "libelle": "Recouvrement insuffisant des charges entraînant une copropriété en difficulté (travaux bloqués, procédure, mise en cause du syndic)",
      "mesures": [
       "SYN-M2"
      ]
@@ -1328,6 +1407,13 @@
       "SYN-M2",
       "SYN-M6"
      ]
+    },
+    {
+     "id": "SYN-R6",
+     "libelle": "Détournement ou erreur sur les fonds des syndicats de copropriétaires",
+     "mesures": [
+      "SYN-M7"
+     ]
     }
    ]
   },
@@ -1344,7 +1430,7 @@
    "questions": [
     {
      "id": "LOG-M1",
-     "texte": "Le plan stratégique de patrimoine et le plan d'entretien pluriannuel sont à jour."
+     "texte": "Le plan stratégique de patrimoine, le plan d'entretien pluriannuel et un plan à moyen terme financé, avec simulation de l'autofinancement, sont à jour."
     },
     {
      "id": "LOG-M2",
@@ -1391,17 +1477,16 @@
     },
     {
      "id": "LOG-R4",
-     "libelle": "Contrainte de regroupement ou de rattachement à un groupe",
+     "libelle": "Rattachement subi de la filiale bailleur à un groupe extérieur au réseau, faute de stratégie de regroupement arrêtée (loi ELAN)",
      "mesures": [
       "LOG-M5"
      ]
     },
     {
      "id": "LOG-R5",
-     "libelle": "Interdiction de louer les logements énergivores du parc (calendrier de la loi Climat et résilience)",
+     "libelle": "Capacité d'investissement insuffisante pour mener à la fois production neuve et réhabilitation (livret A, fonds propres, RLS, fin des garanties d'emprunt des collectivités)",
      "mesures": [
-      "LOG-M1",
-      "RSE-M2"
+      "LOG-M1"
      ]
     },
     {
@@ -1489,5 +1574,5 @@
    "url": "https://www.macartodesrisques.fr/page/2-cotation-page"
   }
  ],
- "nomenclature": "Mesures de maîtrise : CODE-M1, CODE-M2... Risques : CODE-R1, CODE-R2... Numérotation continue dans l'ordre d'affichage. Un identifiant supprimé n'est jamais réutilisé ; aucune renumérotation une fois la collecte ouverte. Chaque risque liste ses mesures liées (« mesures », éventuellement d'un autre chapitre) ; « subi » marque un risque externe sans mesure de prévention."
+ "nomenclature": "Mesures de maîtrise : CODE-M1, CODE-M2... Risques : CODE-R1, CODE-R2... Les identifiants sont figés depuis la v6 : aucune renumérotation, un identifiant supprimé n'est jamais réutilisé (AMC-R7, repris par MOA-R8 en v7). Une mesure scindée garde son numéro suivi d'une lettre (RH-M6a, RH-M6b, GES-M3a, GES-M3b) ; il n'y a pas de MOA-M10. Chaque risque liste ses mesures liées (« mesures », éventuellement d'un autre chapitre) ; « subi » marque un risque qui tient à un événement extérieur."
 }

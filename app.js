@@ -3,13 +3,16 @@
    Depuis le 14 octobre 2026 : la partie 1 de chaque univers (mesures de maîtrise) est descriptive, seule la
    partie 2 (cotation des risques) se remplit, et chaque réponse part en direct vers la base partagée.
    Version « un outil par SACICAP » (29 octobre 2026) : la session vient de l'adresse (?s=sacicap-...), son nom et son
-   état sont lus dans la base (infos_session, supabase/sessions.sql) et les résultats s'ouvrent avec la clé de la SACICAP. */
+   état sont lus dans la base (infos_session, supabase/sessions.sql) et les résultats s'ouvrent avec la clé de la SACICAP.
+   Depuis le 5 novembre 2026 : une réponse par personne (prénom, nom, fonction), plus de groupe ni de choix de périmètre. */
 (function () {
   "use strict";
 
   const CFG = window.CARTO_CONFIG || {};
   const PARAMS = new URLSearchParams(location.search);
   const SESSION = PARAMS.get("s") || CFG.session || "";
+  // Version des fichiers de données : à changer à chaque mise en ligne, comme celle des scripts dans index.html
+  const VERSION = "2026-11-05-v7";
   // Copie figée d'une session (dossier archives/, 29 octobre 2026) : config.js porte « archive » et la page ne fait
   // que lire. Pas de formulaire, pas d'envoi, pas de rafraîchissement ni de remise à zéro.
   // Une archive ou un formulaire fermé passent aussi dans ce mode au démarrage (infos_session).
@@ -53,10 +56,9 @@
   }
 
   /* ---------- État ----------
-     Depuis le 19 octobre 2026, un ordinateur peut porter plusieurs rapports (un par groupe) : chacun est rangé
-     dans localStorage sous « carto.r.<id> » et chaque onglet retient dans sessionStorage celui qu'il remplit.
-     Deux onglets ou deux fenêtres du même ordinateur ne partagent plus les mêmes cotations, et « Nouveau
-     rapport » crée toujours un nouveau participant (avant, un seul rapport par navigateur, réécrit à chaque fois). */
+     Un ordinateur peut porter plusieurs rapports (un par personne) : chacun est rangé dans localStorage et chaque
+     onglet retient dans sessionStorage celui qu'il remplit. Deux onglets ou deux fenêtres du même ordinateur ne
+     partagent pas les mêmes cotations. */
   // Rapports rangés par session (29 octobre 2026) : deux SACICAP ouvertes sur le même ordinateur ne se mélangent pas.
   const PREFIXE = "carto.s." + SESSION + ".r.", ACTIF = "carto.actif." + SESSION;
   const ssGet = k => { try { return sessionStorage.getItem(k) || ""; } catch (e) { return ""; } };
@@ -75,9 +77,11 @@
 
   const S = {
     ref: null, soc: null, store: null, participant: null, mes: {}, file: [],
-    res: { rows: [], maj: null, filtres: { societe: "", bloc: "" }, seuil: Number(CFG.seuilDefaut) || 6, chargement: false, erreur: null, timer: null, actif: false }
+    res: { rows: [], maj: null, filtres: { personne: "", bloc: "" }, seuil: Number(CFG.seuilDefaut) || 6, chargement: false, erreur: null, timer: null, actif: false }
   };
-  // Rapport rempli par cet onglet (vide : formulaire « Nouveau rapport »)
+  // Nom affiché d'une personne. Les rapports d'avant le 5 novembre 2026 portaient un groupe et un intitulé libre.
+  const nomComplet = p => [p && p.prenom, p && p.nom].map(x => String(x || "").trim()).filter(Boolean).join(" ") || (p && (p.societe || p.fonction)) || "Sans nom";
+  // Rapport rempli par cet onglet (vide : formulaire d'accueil vierge)
   function chargerRapport(id) {
     const r = id ? lsGet(PREFIXE + id, null) : null;
     S.participant = (r && r.participant) || null; S.mes = (r && r.mes) || {}; S.file = (r && r.file) || [];
@@ -140,7 +144,7 @@
   const liensMesure = (id, code) => { const rs = S.parMesure[id] || []; return `<div class="liens">${rs.length ? "Risques couverts : " + chipsLiens(rs, code) : '<span class="orphelin">Aucun risque lié</span>'}</div>`; };
   const liensRisque = (r, code) => {
     const ms = r.mesures || [];
-    const subi = r.subi ? '<span class="chip subi" title="Événement extérieur : pas de mesure de prévention, il se surveille et s\'accepte ou se réduit par un plan d\'action">Risque subi</span>' : "";
+    const subi = r.subi ? '<span class="chip subi" title="Événement extérieur qu\'on ne peut pas empêcher : il se surveille, et il s\'accepte ou se réduit par un plan d\'action">Risque subi</span>' : "";
     return `<div class="liens">${subi}${ms.length ? "Mesures : " + chipsLiens(ms, code) : (r.subi ? "" : '<span class="orphelin">Aucune mesure de maîtrise liée</span>')}</div>`;
   };
 
@@ -185,66 +189,61 @@
   /* ---------- Accueil (reprend la page d'accueil de l'artifact d'origine) ---------- */
   function vueAccueil() {
     const p = S.participant, cur = p || {};
-    const soc = S.soc.societes, fon = S.soc.fonctions, metiers = S.ref.metiers;
+    const fon = S.soc.fonctions, metiers = S.ref.metiers;
     const sel = (v, c) => v === c ? " selected" : "";
     const mets = cur.metiers && cur.metiers.length ? cur.metiers : metiers.map(m => m.id);
-    const perim = cur.perimetre || "sacicap";  // outil d'une SACICAP : ses métiers par défaut
     const intro = `
       <div class="intro-txt">
-        <p class="lead">Un autodiagnostic pour le conseil d'administration : il couvre les métiers du réseau Procivis et les règles propres au statut de SACICAP. Pour chaque univers, il rappelle les mesures de maîtrise attendues, cote les risques et les compare à l'appétence au risque choisie par le groupe.</p>
+        <p class="lead">Un autodiagnostic pour le conseil d'administration : il couvre les métiers du réseau Procivis et les règles propres au statut de SACICAP. Pour chaque univers, il rappelle les mesures de maîtrise attendues, cote les risques et les compare à l'appétence au risque choisie par le conseil.</p>
         <div class="etapes">
-          <div class="etape"><b>1</b><p><strong>Choisir le périmètre.</strong> Cochez les métiers exercés par la SACICAP et ses filiales : seuls les univers correspondants s'affichent. « Tout le réseau » affiche tous les univers.</p></div>
+          <div class="etape"><b>1</b><p><strong>Se présenter.</strong> Indiquez votre prénom, votre nom et votre fonction, puis cochez les métiers exercés par la SACICAP et ses filiales : seuls les univers correspondants s'affichent.</p></div>
           <div class="etape"><b>2</b><p><strong>Coter.</strong> Pour chaque univers, prenez connaissance des mesures de maîtrise, puis cotez chaque risque : probabilité et impact de 1 à 4, en tenant compte de ce qui existe déjà. Décidez pour chacun : accepter ou réduire.</p></div>
           <div class="etape"><b>3</b><p><strong>Lire la synthèse.</strong> Les réponses sont compilées en direct, dès les premières cotations, dans l'onglet Résultats, réservé à la SACICAP et ouvert par sa clé d'accès : exposition par univers, matrice des risques, risques hors appétence, export CSV. L'onglet <a href="#/aide">« Cadre de référence »</a> rappelle les textes et les échelles.</p></div>
         </div>
         <div class="famlist">${metiers.map(m => `<span class="chip accent">${t(m.nom)}</span>`).join("")}</div>
       </div>`;
+    const liste = rapportsAppareil();
     const form = `
       <div class="panel">
-        <h3 style="margin-bottom:12px">${p ? "Votre rapport" : "Nouveau rapport"}</h3>
         <form class="newform" id="f-profil" autocomplete="off">
           <div class="row">
-            <label class="f" for="f-societe">Groupe
-              <select id="f-societe" required><option value="">Choisir</option>${soc.map(x => `<option value="${esc(x)}"${sel(x, cur.societe)}>${esc(x)}</option>`).join("")}</select></label>
-            <label class="f" for="f-fonction">Fonction
-              <select id="f-fonction" required><option value="">Choisir</option>${fon.map(x => `<option value="${esc(x)}"${sel(x, cur.fonction)}>${esc(x)}</option>`).join("")}</select></label>
+            <label class="f" for="f-prenom">Prénom
+              <input type="text" id="f-prenom" maxlength="38" required autocomplete="given-name" value="${esc(cur.prenom || "")}"></label>
+            <label class="f" for="f-nom">Nom
+              <input type="text" id="f-nom" maxlength="38" required autocomplete="family-name" value="${esc(cur.nom || "")}"></label>
           </div>
-          <label class="f" for="f-prenom">Intitulé <span class="muted">(votre prénom, facultatif)</span>
-            <input type="text" id="f-prenom" maxlength="60" value="${esc(cur.prenom || "")}" placeholder="Ex. Conseil du ${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}"></label>
-          <label class="f" for="f-perimetre">Périmètre
-            <select id="f-perimetre" name="perim"><option value="sacicap"${perim === "sacicap" ? " selected" : ""}>La SACICAP (métiers à cocher)</option><option value="reseau"${perim === "reseau" ? " selected" : ""}>Tout le réseau Procivis (tous les métiers)</option></select></label>
-          <fieldset class="mets${perim === "sacicap" ? "" : " inactif"}" id="f-metiers"><legend>Métiers exercés par la SACICAP et ses filiales</legend>
+          <label class="f" for="f-fonction">Fonction
+            <select id="f-fonction" required><option value="">Choisir</option>${fon.map(x => `<option value="${esc(x)}"${sel(x, cur.fonction)}>${esc(x)}</option>`).join("")}</select></label>
+          <fieldset class="mets" id="f-metiers"><legend>Métiers exercés par la SACICAP et ses filiales</legend>
             ${metiers.map(m => `<label for="f-m-${m.id}"><input type="checkbox" name="met" id="f-m-${m.id}" value="${m.id}"${mets.includes(m.id) ? " checked" : ""}>${t(m.nom)}</label>`).join("")}
           </fieldset>
-          <button class="btn primaire" type="submit">${p ? "Mettre à jour le rapport" : "Créer le rapport"}</button>
-          <p class="note">${S.store.isRemote ? `Chaque cotation est enregistrée en direct et compilée dans les résultats de ${t(CFG.sessionLabel || "la SACICAP")}.` : "Aperçu local : le rapport ne sera pas conservé après fermeture."}</p>
-          ${p ? `<p class="note">Un autre groupe sur cet ordinateur ? <button type="button" class="btn lien" data-act="nouveau">Commencer un nouveau rapport</button> (celui-ci reste dans la liste « Rapports sur cet ordinateur »).</p>`
-            : rapportsAppareil().length ? `<p class="note">Votre groupe a déjà commencé sur cet ordinateur ? Reprenez son rapport dans la liste « Rapports sur cet ordinateur », plus bas.</p>` : ""}
+          <button class="btn primaire" type="submit">${p ? "Mettre à jour" : "Commencer"}</button>
+          <p class="note">${S.store.isRemote ? `Chaque cotation est enregistrée en direct et compilée dans les résultats de ${t(CFG.sessionLabel || "la SACICAP")}.` : "Aperçu local : les réponses ne seront pas conservées après fermeture."}</p>
+          ${p ? `<p class="note">Une autre personne sur cet ordinateur ? <button type="button" class="btn lien" data-act="nouveau">Commencer une nouvelle réponse</button> (celle-ci reste dans la liste « Réponses sur cet ordinateur »).</p>`
+            : liste.length ? `<p class="note">Vous avez déjà commencé sur cet ordinateur ? Reprenez votre réponse dans la liste « Réponses sur cet ordinateur », plus bas.</p>` : ""}
         </form>
       </div>`;
-    // Tous les rapports rangés sur cet ordinateur ; celui de cet onglet est marqué
-    const liste = rapportsAppareil();
-    let rapports = `<section class="rapports"><div class="rap-head"><h2>Rapports sur cet ordinateur</h2><span class="muted">${liste.length} rapport${liste.length > 1 ? "s" : ""}</span></div>`;
-    if (!liste.length) {
-      rapports += `<div class="panel"><p><strong>Aucun rapport pour l'instant.</strong></p><p class="muted">Créez le premier avec le formulaire « Nouveau rapport » : il apparaîtra ici avec sa progression et sa criticité moyenne.</p></div>`;
-    } else {
-      rapports += `<div class="panel" style="padding:0;overflow-x:auto"><table class="res rap"><thead><tr><th>Groupe</th><th>Intitulé</th><th>Périmètre</th><th>Mis à jour</th><th>Progression</th><th class="num">Criticité moyenne</th><th></th></tr></thead><tbody>
+    // Réponses rangées sur cet ordinateur ; celle de cet onglet est marquée. Rien à afficher tant qu'il n'y en a pas.
+    let rapports = "";
+    if (liste.length) {
+      rapports = `<section class="rapports"><div class="rap-head"><h2>Réponses sur cet ordinateur</h2><span class="muted">${liste.length} personne${liste.length > 1 ? "s" : ""}</span></div>`;
+      rapports += `<div class="panel" style="padding:0;overflow-x:auto"><table class="res rap"><thead><tr><th>Nom</th><th>Fonction</th><th>Mis à jour</th><th>Progression</th><th class="num">Criticité moyenne</th><th></th></tr></thead><tbody>
         ${liste.map(r => {
           const q = r.participant, mes = r.mes || {}, ici = p && p.id === q.id, act = universActifs(q);
           const tot = act.reduce((x, u) => x + progression(u, mes).tot, 0), fait = act.reduce((x, u) => x + progression(u, mes).fait, 0);
           const crit = moy(criticitesLocales(act, mes));
           const maj = Math.max(0, ...act.map(u => (mes[u.code] || {}).modifie || 0));
           const ouvrir = ici ? `<a class="btn" href="#/univers">Ouvrir</a>` : `<button class="btn" data-act="reprendre" data-id="${esc(q.id)}">Reprendre</button>`;
-          return `<tr><td>${ici ? `<a class="btn lien" href="#/univers">${esc(q.societe)}</a> <span class="chip ok">Cet onglet</span>` : esc(q.societe)}</td><td>${esc(q.prenom || q.fonction)}</td><td><span class="chip">${q.perimetre === "sacicap" ? "SACICAP" : "Réseau"}</span></td><td class="muted">${maj ? fmtDate(maj) : "-"}</td>
+          return `<tr><td>${ici ? `<a class="btn lien" href="#/univers">${esc(nomComplet(q))}</a> <span class="chip ok">Cet onglet</span>` : esc(nomComplet(q))}</td><td>${esc(q.fonction || "")}</td><td class="muted">${maj ? fmtDate(maj) : "-"}</td>
         <td><div style="display:flex;gap:8px;align-items:center;min-width:140px"><div class="progress" style="flex:1"><span style="width:${tot ? Math.round(fait / tot * 100) : 0}%"></span></div><span class="num">${tot ? Math.round(fait / tot * 100) : 0} %</span></div></td>
         <td class="num">${crit === null ? "-" : fmt1(crit) + " / 16"}</td><td style="white-space:nowrap">${ouvrir} <button class="btn lien" data-act="effacer-local" data-id="${esc(q.id)}">Effacer</button></td></tr>`;
         }).join("")}</tbody></table></div>`;
       const aEffacer = S.confirmEffacer && liste.find(r => r.participant.id === S.confirmEffacer);
       rapports += aEffacer
-        ? `<div class="panel confirm-local"><p><strong>Effacer le rapport « ${esc(aEffacer.participant.societe)} · ${esc(aEffacer.participant.prenom || aEffacer.participant.fonction)} » de cet ordinateur ?</strong> Les réponses déjà envoyées restent dans la base et dans les résultats.</p><div class="actions"><button class="btn danger" data-act="effacer-ok">Oui, effacer</button><button class="btn" data-act="effacer-non">Annuler</button></div></div>`
-        : `<p class="small muted" style="margin-top:8px">Chaque onglet remplit son propre rapport : plusieurs groupes peuvent travailler sur le même ordinateur, chacun dans son onglet. « Effacer » retire un rapport de test de cet ordinateur.</p>`;
+        ? `<div class="panel confirm-local"><p><strong>Effacer la réponse de ${esc(nomComplet(aEffacer.participant))} de cet ordinateur ?</strong> Les cotations déjà envoyées restent dans la base et dans les résultats.</p><div class="actions"><button class="btn danger" data-act="effacer-ok">Oui, effacer</button><button class="btn" data-act="effacer-non">Annuler</button></div></div>`
+        : `<p class="small muted" style="margin-top:8px">Chaque onglet remplit sa propre réponse : plusieurs personnes peuvent répondre sur le même ordinateur, chacune dans son onglet. « Effacer » retire une réponse de test de cet ordinateur.</p>`;
+      rapports += "</section>";
     }
-    rapports += "</section>";
     return `
       <div class="hero"><p class="eyebrow">Réseau Procivis · cartographie des risques</p><h1>${t(CFG.sessionLabel || "Cartographie des risques")}</h1><p class="muted">Autodiagnostic des risques par le conseil d'administration</p></div>
       <section class="intro">${intro}${form}</section>
@@ -252,16 +251,16 @@
   }
 
   function soumettreProfil(form) {
-    const societe = form.querySelector("#f-societe").value;
+    const prenom = form.querySelector("#f-prenom").value.trim().replace(/\s+/g, " ");
+    const nom = form.querySelector("#f-nom").value.trim().replace(/\s+/g, " ");
     const fonction = form.querySelector("#f-fonction").value;
-    const prenom = form.querySelector("#f-prenom").value.trim();
-    const perimetre = form.querySelector("#f-perimetre").value;
     const metiers = [...form.querySelectorAll("input[name=met]:checked")].map(x => x.value);
-    if (!societe || !fonction) { toast("Indiquez votre groupe et votre fonction."); return; }
-    if (perimetre === "sacicap" && !metiers.length) { toast("Cochez au moins un métier exercé."); return; }
+    if (!prenom || !nom || !fonction) { toast("Indiquez votre prénom, votre nom et votre fonction."); return; }
+    if (!metiers.length) { toast("Cochez au moins un métier exercé."); return; }
     // « remise » : dernière remise à zéro connue à la création ("?" si la base n'a pas encore répondu)
     const remise = S.participant ? S.participant.remise : (remiseConnue === undefined ? "?" : remiseConnue);
-    S.participant = { id: (S.participant && S.participant.id) || uid(), societe, fonction, prenom, perimetre, metiers, remise };
+    // Le périmètre n'est plus demandé : chacun répond pour sa SACICAP, sur les métiers cochés
+    S.participant = { id: (S.participant && S.participant.id) || uid(), prenom, nom, fonction, perimetre: "sacicap", metiers, remise };
     ssSet(ACTIF, S.participant.id); persist(); go("/univers");
   }
 
@@ -280,7 +279,7 @@
     let h = `
       <div class="panel">
         <div class="resume">
-          <div><strong>${esc(p.prenom || p.fonction)}</strong> · ${esc(p.societe)}<br><span class="small muted">${p.perimetre === "sacicap" ? "Périmètre : ma société (" + p.metiers.map(id => (S.ref.metiers.find(m => m.id === id) || {}).nom || id).join(", ") + ")" : "Périmètre : le réseau dans son ensemble"}</span></div>
+          <div><strong>${esc(nomComplet(p))}</strong>${p.fonction ? " · " + esc(p.fonction) : ""}<br><span class="small muted">${p.perimetre === "sacicap" && p.metiers && p.metiers.length ? "Métiers : " + p.metiers.map(id => (S.ref.metiers.find(m => m.id === id) || {}).nom || id).join(", ") : "Tous les métiers"}</span></div>
           <a class="btn lien" href="#/" data-act="editer-profil">Modifier</a>
         </div>
         <div style="margin-top:12px" class="progress" aria-label="Progression"><span style="width:${tot ? Math.round(fait / tot * 100) : 0}%"></span></div>
@@ -325,7 +324,7 @@
         <p>${t(u.intro)}</p>
         <div class="ref">Références : ${t(u.reference)}</div>
         <details class="cadre"><summary>Comment coter ?</summary>
-          <p class="small" style="margin-top:8px">La <strong>partie 1</strong> rappelle les mesures de maîtrise attendues dans ce chapitre : elle se lit, elle ne se cote pas. Dans la <strong>partie 2</strong>, la <strong>probabilité</strong> et l'<strong>impact</strong> de chaque risque se cotent de 1 à 4 en tenant compte des mesures réellement en place. La criticité est le produit des deux. Pour chaque risque, indiquez votre décision : l'<strong>accepter</strong> à son niveau actuel, ou le <strong>réduire</strong> par un plan d'action. Cette décision ne change pas la note. Sous chaque mesure figurent les risques qu'elle couvre, sous chaque risque les mesures liées ; un <strong>risque subi</strong> est un événement extérieur sans mesure de prévention. Chaque cotation est envoyée au fil de la saisie. ${E.impact_note ? t(E.impact_note) + " " : ""}<a href="#/aide">Voir le cadre de référence</a>.</p>
+          <p class="small" style="margin-top:8px">La <strong>partie 1</strong> rappelle les mesures de maîtrise attendues dans ce chapitre : elle se lit, elle ne se cote pas. Dans la <strong>partie 2</strong>, la <strong>probabilité</strong> et l'<strong>impact</strong> de chaque risque se cotent de 1 à 4 en tenant compte des mesures réellement en place. La criticité est le produit des deux. Pour chaque risque, indiquez votre décision : l'<strong>accepter</strong> à son niveau actuel, ou le <strong>réduire</strong> par un plan d'action. Cette décision ne change pas la note. Sous chaque mesure figurent les risques qu'elle couvre, sous chaque risque les mesures liées ; un <strong>risque subi</strong> est un événement extérieur qu'on ne peut pas empêcher. Chaque cotation est envoyée au fil de la saisie. ${E.impact_note ? t(E.impact_note) + " " : ""}<a href="#/aide">Voir le cadre de référence</a>.</p>
         </details>
       </div>
       <div class="panel">
@@ -402,7 +401,9 @@
   function ligne(code) {
     const m = mesU(code), p = S.participant, aj = propositions(m);
     return {
-      session: SESSION, participant_id: p.id, prenom: p.prenom || null, societe: p.societe, fonction: p.fonction,
+      // Une réponse par personne : la colonne « prenom » porte « Prénom Nom » (80 caractères au plus dans la base),
+      // « societe » ne sert plus (elle portait le groupe).
+      session: SESSION, participant_id: p.id, prenom: nomComplet(p).slice(0, 80), societe: p.societe || null, fonction: p.fonction,
       perimetre: p.perimetre, metiers: p.perimetre === "sacicap" ? p.metiers : null, univers: code,
       // Les mesures proposées par le participant voyagent dans le jsonb « maitrise » sous la clé _ajouts (liste {id, texte}).
       maitrise: aj.length ? { _ajouts: aj } : {},
@@ -480,8 +481,8 @@
   /* ---------- Remise à zéro à distance (19 octobre 2026) ----------
      Le bouton « Remise à zéro » de l'onglet Résultats note l'heure de la remise dans la base
      (supabase/remise-distance.sql). Chaque onglet la lit toutes les 5 secondes (demande de Maxime) et avant chaque envoi : un rapport
-     commencé avant la dernière remise est effacé de l'ordinateur, sans rien envoyer, et le formulaire revient sur
-     « Nouveau rapport ». Tant que la fonction n'est pas installée dans la base, rien ne change. */
+     commencé avant la dernière remise est effacé de l'ordinateur, sans rien envoyer, et le formulaire revient à
+     l'accueil. Tant que la fonction n'est pas installée dans la base, rien ne change. */
   let remiseConnue;  // undefined : pas encore lue ; null : aucune remise ; sinon horodatage de la dernière
   const perime = (p, v) => v !== undefined && !!p && p.remise !== "?" && (p.remise ?? null) !== v;
   async function verifierRemise() {
@@ -507,7 +508,7 @@
       const r = route();
       if (actif && (r.name === "univers" || r.name === "saisie")) go("/");
       else if (r.name === "accueil") render();
-      if (actif && r.name !== "resultats") toast("Les résultats ont été remis à zéro : choisissez votre groupe pour commencer un nouveau rapport.");
+      if (actif && r.name !== "resultats") toast("Les résultats ont été remis à zéro : vos réponses ont été effacées, vous pouvez recommencer.");
     }
     return v;
   }
@@ -538,7 +539,7 @@
       </div>
       <div class="panel">
         <h2>Repères de lecture</h2>
-        <p>Chaque risque porte un identifiant <strong>CODE-R</strong>, numéroté dans l'ordre d'affichage du chapitre. Sous chaque risque figurent les mesures qui le réduisent, parfois dans un autre chapitre. Un risque marqué <span class="chip subi">Risque subi</span> est un événement extérieur sans mesure de prévention : il se surveille, et il s'accepte ou se réduit par un plan d'action.</p>
+        <p>Chaque risque porte un identifiant <strong>CODE-R</strong>. Sous chaque risque figurent les mesures qui le réduisent, parfois dans un autre chapitre. Un risque marqué <span class="chip subi">Risque subi</span> est un événement extérieur qu'on ne peut pas empêcher : il se surveille, et il s'accepte ou se réduit par un plan d'action.</p>
         <p>Les cotations sont envoyées au fil de la saisie et compilées en direct : la synthèse se construit dès les premières réponses, sans attendre que tout soit rempli.</p>
       </div>
       <div class="panel">
@@ -612,45 +613,38 @@
     if (!ARCHIVE && !S.res.timer && (Number(CFG.rafraichissement) || 0) > 0) S.res.timer = setInterval(chargerResultats, Number(CFG.rafraichissement) * 1000);
   }
 
+  // Nom d'un répondant tel qu'il figure dans la base (colonne « prenom » : prénom et nom)
+  const nomRow = r => String(r.prenom || "").trim() || "Sans nom";
   function filtrer(rows) {
     const f = S.res.filtres;
-    return rows.filter(r => (!f.societe || r.societe === f.societe) && (!f.bloc || (parCode(r.univers) || {}).bloc === f.bloc));
+    return rows.filter(r => (!f.personne || nomRow(r) === f.personne) && (!f.bloc || (parCode(r.univers) || {}).bloc === f.bloc));
   }
 
-  // Couleurs des points de la matrice, une par groupe dans l'ordre de societes.json, lisibles sur les quatre fonds de cellule
-  const COULEURS_GROUPES = ["#3E7A14", "#1D5BBF", "#A0287A", "#0E7C86", "#C2410C", "#1F2124"];
+  // Couleur des points de la matrice, lisible sur les quatre fonds de cellule
+  const COULEUR_POINTS = "#3E7A14";
 
   function agreger(rows) {
     const U = {}; S.ref.univers.forEach(u => U[u.code] = { u, n: 0, propositions: [] });
-    const vide = () => { const R = {}; S.ref.univers.forEach(u => u.risques.forEach(r => R[r.id] = { r, u, p: [], i: [], c: [], acc: 0, red: 0 })); return R; };
-    const R = vide(), G = {};   // R : tous groupes confondus (tableaux) ; G : par groupe (matrice, un point par risque et par groupe)
+    const R = {}; S.ref.univers.forEach(u => u.risques.forEach(r => R[r.id] = { r, u, p: [], i: [], c: [], acc: 0, red: 0 }));
     rows.forEach(row => {
       const cu = U[row.univers]; if (!cu) return;
       cu.n++;
-      const nomG = row.societe || "Sans groupe";
-      if (!G[nomG]) G[nomG] = vide();
-      const RG = G[nomG];
-      const qui = [row.prenom, row.societe, row.fonction].filter(Boolean).join(" · ");
+      const qui = [nomRow(row), row.fonction].filter(Boolean).join(" · ");
       const aj = row.maitrise && Array.isArray(row.maitrise._ajouts) ? row.maitrise._ajouts : [];
       aj.forEach(a => { if (a && typeof a.texte === "string" && a.texte.trim()) cu.propositions.push({ id: a.id || "", texte: a.texte.trim(), qui, date: row.created_at }); });
       Object.entries(row.cotation || {}).forEach(([id, c]) => {
         const cr = R[id]; if (!cr || !c) return;
-        if (c.p && c.i) [cr, RG[id]].forEach(x => { x.p.push(c.p); x.i.push(c.i); x.c.push(c.p * c.i); });
+        if (c.p && c.i) { cr.p.push(c.p); cr.i.push(c.i); cr.c.push(c.p * c.i); }
         if (c.t === "acc") cr.acc++; else if (c.t === "red") cr.red++;
       });
     });
     const stats = x => ({ ...x, n: x.c.length, mp: moy(x.p), mi: moy(x.i), mc: moy(x.c), sd: ecartType(x.c), min: x.c.length ? Math.min(...x.c) : null, max: x.c.length ? Math.max(...x.c) : null, pctRed: (x.acc + x.red) ? x.red / (x.acc + x.red) : null });
     const risques = Object.values(R).map(stats);
     const univers = Object.values(U).map(x => ({ ...x, expo: moy(risques.filter(r => r.u.code === x.u.code && r.n).map(r => r.mc)) }));
-    // Groupes présents, dans l'ordre de societes.json puis par ordre alphabétique ; la couleur suit la position dans societes.json
-    const connus = (S.soc && S.soc.societes) || [];
-    const autres = Object.keys(G).filter(n => !connus.includes(n)).sort((a, b) => a.localeCompare(b, "fr"));
-    const groupes = [...connus.filter(n => G[n]), ...autres].map(nom => {
-      const k = connus.indexOf(nom), idx = k >= 0 ? k : connus.length + autres.indexOf(nom);
-      return { nom, couleur: COULEURS_GROUPES[idx % COULEURS_GROUPES.length], risques: Object.values(G[nom]).map(stats).filter(x => x.n) };
-    });
+    // Matrice : un point par risque, à la moyenne des réponses retenues (ou aux cotations de la personne filtrée)
+    const serie = { nom: S.res.filtres.personne || "Moyenne des réponses", couleur: COULEUR_POINTS, risques: risques.filter(x => x.n) };
     return {
-      reponses: univers.reduce((s, u) => s + u.n, 0), univers, risques, groupes,
+      reponses: univers.reduce((s, u) => s + u.n, 0), univers, risques, groupes: [serie],
       cotations: risques.reduce((s, r) => s + r.n, 0),
       expo: moy(risques.filter(r => r.n).map(r => r.mc)),
       couverts: univers.filter(u => u.n > 0).length
@@ -668,7 +662,7 @@
     const W = 640, H = 520, L = 124, B = 46, T = 12, R = 14;
     const pw = W - L - R, ph = H - T - B;
     const sx = v => L + (v - 0.5) / 4 * pw, sy = v => T + ph - (v - 0.5) / 4 * ph;
-    let s = `<svg class="scatter" viewBox="0 0 ${W} ${H}" role="img" aria-label="Matrice des risques : probabilité moyenne en ordonnée, impact moyen en abscisse, une couleur par groupe">`;
+    let s = `<svg class="scatter" viewBox="0 0 ${W} ${H}" role="img" aria-label="Matrice des risques : probabilité moyenne en ordonnée, impact moyen en abscisse">`;
     for (let p = 1; p <= 4; p++) for (let i = 1; i <= 4; i++) s += `<rect x="${sx(i - 0.5) + 1}" y="${sy(p + 0.5) + 1}" width="${pw / 4 - 2}" height="${ph / 4 - 2}" rx="6" class="c-${niveau(p * i).k}"/>`;
     for (let v = 1; v <= 4; v++) {
       s += `<text x="${sx(v)}" y="${H - 26}" text-anchor="middle" class="axl">${v} · ${nomImpact[v]}</text>`;
@@ -676,8 +670,8 @@
     }
     s += `<text x="${L + pw / 2}" y="${H - 8}" text-anchor="middle" class="axt">Impact moyen</text>`;
     s += `<text transform="translate(12 ${T + ph / 2}) rotate(-90)" text-anchor="middle" class="axt">Probabilité moyenne</text>`;
-    // Un point par risque et par groupe. Les points d'un même risque se répartissent en anneau autour de sa position,
-    // chaque groupe à un angle fixe, pour rester distincts quand les groupes donnent la même cotation.
+    // Un point par risque et par série (une seule série depuis le 5 novembre 2026 : la moyenne des réponses).
+    // Avec plusieurs séries, les points d'un même risque se répartissent en anneau autour de sa position.
     const n = groupes.length, pts = [];
     groupes.forEach((g, gi) => {
       const ang = 2 * Math.PI * gi / n, dx = n > 1 ? Math.cos(ang) * 7 : 0, dy = n > 1 ? Math.sin(ang) * 7 : 0;
@@ -690,8 +684,7 @@
     pts.sort((a, b) => a.r.mc - b.r.mc).forEach(p => {
       s += `<g class="pt${p.hors ? " hors" : ""}" data-tip="${esc(tipP(p.r, p.g))}"><circle cx="${p.cx.toFixed(1)}" cy="${p.cy.toFixed(1)}" r="${p.hors ? 7 : 6}" fill="${p.g.couleur}"/></g>`;
     });
-    // Étiquettes par-dessus les points : une seule par risque quand ses points sont serrés (même cotation dans les groupes),
-    // une par point quand les groupes divergent.
+    // Étiquettes par-dessus les points : une seule par risque quand ses points sont serrés, une par point sinon.
     const parRisque = {};
     pts.forEach(p => { if (p.nomme) (parRisque[p.r.r.id] = parRisque[p.r.r.id] || []).push(p); });
     Object.values(parRisque).forEach(l => {
@@ -710,13 +703,12 @@
     const f = S.res.filtres, seuil = S.res.seuil;
     const all = S.res.rows, rows = filtrer(all), A = agreger(rows);
     const opts = (vals, cur) => vals.map(v => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(v)}</option>`).join("");
-    const uniq = k => [...new Set(all.map(r => r[k]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "fr"));
+    const personnes = [...new Set(all.map(nomRow))].sort((a, b) => a.localeCompare(b, "fr"));
     const hors = A.risques.filter(r => r.n && r.mc > seuil).sort((a, b) => b.mc - a.mc);
     const top = A.risques.filter(r => r.n).sort((a, b) => b.mc - a.mc || b.n - a.n).slice(0, 10);
     const diverg = A.risques.filter(r => r.n >= 2).sort((a, b) => b.sd - a.sd).slice(0, 6);
     const propositions = A.univers.flatMap(u => u.propositions.map(x => ({ ...x, u: u.u })));
     const tipP = (r, g) => `${r.r.id} · ${fr(r.r.libelle)}\n${g.nom} : probabilité ${fmt1(r.mp)} · impact ${fmt1(r.mi)} · criticité ${fmt1(r.mc)}\n${r.n} cotation${r.n > 1 ? "s" : ""}`;
-    const plusieurs = A.groupes.length > 1;
     const delai = ARCHIVE ? 0 : Number(CFG.rafraichissement) || 0;
 
     let h = `
@@ -727,7 +719,7 @@
       ${S.store.isRemote && S.store.protege === false ? '<div class="bandeau">Lecture non protégée : la fonction d\'accès n\'est pas encore installée dans Supabase (exécuter supabase/securite.sql). En attendant, toute personne ayant le lien peut lire les réponses.</div>' : ""}
       ${S.res.erreur ? `<div class="bandeau erreur">${/^Réinitialisation/.test(S.res.erreur) ? "" : "Lecture impossible : "}${esc(S.res.erreur)}</div>` : ""}
       <div class="panel"><div class="filtres">
-        <div><label for="fl-societe">Groupe</label><select id="fl-societe" data-filtre="societe"><option value="">Tous</option>${opts(uniq("societe"), f.societe)}</select></div>
+        <div><label for="fl-personne">Répondant</label><select id="fl-personne" data-filtre="personne"><option value="">Tous (${personnes.length})</option>${opts(personnes, f.personne)}</select></div>
         <div><label for="fl-bloc">Bloc</label><select id="fl-bloc" data-filtre="bloc"><option value="">Tous</option>${S.ref.blocs.map(b => `<option value="${b.id}"${f.bloc === b.id ? " selected" : ""}>${t(b.nom)}</option>`).join("")}</select></div>
         <div><label for="fl-seuil">Seuil d'appétence</label><select id="fl-seuil" data-seuil>${S.ref.echelles.seuils.map(s => `<option value="${s.v}"${s.v === seuil ? " selected" : ""}>${t(s.l)}</option>`).join("")}</select></div>
         ${ARCHIVE ? "" : '<button class="btn" data-act="rafraichir">Actualiser</button>'}
@@ -748,9 +740,9 @@
       </div>
       <div class="panel" style="margin-top:14px"><h2>Exposition moyenne par univers</h2><p class="small muted">Criticité moyenne des risques cotés, sur 16.</p>
         ${barres(A.univers.filter(u => u.expo !== null).sort((a, b) => b.expo - a.expo).map(u => ({ lab: u.u.court, v: u.expo, txt: fmt1(u.expo), tip: fr(u.u.nom) })), { max: 16, gris: true })}</div>
-      <div class="panel"><h2>Matrice des risques</h2><p class="small muted">${plusieurs ? "Un point par risque et par groupe, placé à la probabilité et à l'impact moyens donnés par ce groupe ; la couleur indique le groupe. Les dix risques les plus critiques sont nommés, les points cerclés de noir dépassent le seuil" : "Chaque point est un risque placé à sa probabilité et son impact moyens. Les dix plus critiques et ceux qui dépassent le seuil sont nommés"} ; survolez un point pour le détail.</p>
-        ${matriceSVG(A.groupes, seuil, new Set(top.map(r => r.r.id)), !plusieurs, tipP)}
-        <div class="legende">${A.groupes.map(g => `<span><i class="sw rond" style="background:${g.couleur}"></i>${esc(g.nom)}</span>`).join("")}<span><i class="sw rond hors"></i>Au-delà du seuil ${seuil}</span><span><i class="sw" style="background:var(--niv-faible-bg)"></i>Faible 1 à 3</span><span><i class="sw" style="background:var(--niv-modere-bg)"></i>Modéré 4 à 6</span><span><i class="sw" style="background:var(--niv-eleve-bg)"></i>Élevé 8 à 9</span><span><i class="sw" style="background:var(--niv-critique-bg)"></i>Critique 12 à 16</span></div>
+      <div class="panel"><h2>Matrice des risques</h2><p class="small muted">${f.personne ? `Chaque point est un risque placé à la probabilité et à l'impact donnés par ${esc(f.personne)}.` : "Chaque point est un risque placé à la probabilité et à l'impact moyens de toutes les réponses."} Les dix plus critiques et ceux qui dépassent le seuil sont nommés, les points cerclés de noir dépassent le seuil ; survolez un point pour le détail.</p>
+        ${matriceSVG(A.groupes, seuil, new Set(top.map(r => r.r.id)), true, tipP)}
+        <div class="legende"><span><i class="sw rond hors"></i>Au-delà du seuil ${seuil}</span><span><i class="sw" style="background:var(--niv-faible-bg)"></i>Faible 1 à 3</span><span><i class="sw" style="background:var(--niv-modere-bg)"></i>Modéré 4 à 6</span><span><i class="sw" style="background:var(--niv-eleve-bg)"></i>Élevé 8 à 9</span><span><i class="sw" style="background:var(--niv-critique-bg)"></i>Critique 12 à 16</span></div>
       </div>
       <div class="panel"><h2>Les dix risques les plus critiques</h2>
         <table class="res"><thead><tr><th>Risque</th><th>Univers</th><th class="num">P</th><th class="num">I</th><th class="num">Criticité</th><th class="num">Réduire</th><th class="num">Cotations</th></tr></thead><tbody>
@@ -782,10 +774,10 @@
   const horodatage = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
 
   function exportBrut(tout, nomFichier) {
-    const rows = tout ? S.res.rows : filtrer(S.res.rows), out = [["Participant", "Prénom", "Société", "Fonction", "Périmètre", "Métiers", "Univers", "Date", "Type", "Identifiant", "Libellé", "Valeur", "Valeur en clair"]];
+    const rows = tout ? S.res.rows : filtrer(S.res.rows), out = [["Participant", "Prénom et nom", "Fonction", "Métiers", "Univers", "Date", "Type", "Identifiant", "Libellé", "Valeur", "Valeur en clair"]];
     rows.forEach(r => {
       const u = parCode(r.univers); if (!u) return;
-      const base = [r.participant_id, r.prenom || "", r.societe || "", r.fonction || "", r.perimetre || "", (r.metiers || []).join(", "), u.code, r.created_at || ""];
+      const base = [r.participant_id, nomRow(r), r.fonction || "", (r.metiers || []).join(", "), u.code, r.created_at || ""];
       u.risques.forEach(rr => { const c = (r.cotation || {})[rr.id]; if (!c) return;
         if (c.p) out.push([...base, "probabilite", rr.id, fr(rr.libelle), c.p, nomProba[c.p] || ""]);
         if (c.i) out.push([...base, "impact", rr.id, fr(rr.libelle), c.i, nomImpact[c.i] || ""]);
@@ -807,7 +799,7 @@
       ? `<div class="confirm"><p><strong>Confirmer ?</strong> ${all.length ? `${all.length} réponse${all.length > 1 ? "s" : ""} de ${nbPart} participant${nbPart > 1 ? "s" : ""} seront archivées et la session « ${esc(SESSION)} » repartira de zéro. Une sauvegarde CSV sera d'abord téléchargée.` : "La session est déjà vide : seuls les formulaires ouverts sur les ordinateurs seront remis à zéro."}</p>
           <div class="actions"><button class="btn danger" data-act="reinit-ok">Oui, réinitialiser la session</button><button class="btn" data-act="reinit-non">Annuler</button></div></div>`
       : `<button class="btn danger" data-act="reinit">Réinitialiser la session</button>`;
-    return `<div class="panel reinit"><div class="reinit-in"><div><h2>Remise à zéro</h2><p class="small muted">Pour repartir de zéro avant un nouveau groupe ou après un test. Le bouton télécharge d'abord une sauvegarde CSV de toutes les réponses, puis archive la session dans la base : la page repart vide et l'archive reste consultable avec la même clé. Rien n'est effacé dans la base. Les formulaires ouverts sur tous les ordinateurs se vident d'eux-mêmes dans les 5 secondes et reviennent sur « Nouveau rapport ».</p></div>${corps}</div></div>`;
+    return `<div class="panel reinit"><div class="reinit-in"><div><h2>Remise à zéro</h2><p class="small muted">Pour repartir de zéro après un test ou avant une nouvelle campagne. Le bouton télécharge d'abord une sauvegarde CSV de toutes les réponses, puis archive la session dans la base : la page repart vide et l'archive reste consultable avec la même clé. Rien n'est effacé dans la base. Les formulaires ouverts sur tous les ordinateurs se vident d'eux-mêmes dans les 5 secondes et reviennent à l'accueil.</p></div>${corps}</div></div>`;
   }
   async function reinitialiser() {
     const all = S.res.rows;
@@ -817,7 +809,7 @@
     try {
       const r = await S.store.reinitialiserSession(SESSION, cleStockee());
       S.res.archive = { nom: r.archive, lignes: r.lignes, heure: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) };
-      S.res.rows = []; S.res.empreinte = null; S.res.erreur = null; S.res.filtres = { societe: "", bloc: "" };
+      S.res.rows = []; S.res.empreinte = null; S.res.erreur = null; S.res.filtres = { personne: "", bloc: "" };
       setStatut(S.store.isRemote ? "ok" : "off", S.store.isRemote ? "Connecté" : "Mode local");
       toast("Session réinitialisée : " + r.lignes + " réponse" + (r.lignes > 1 ? "s" : "") + " archivée" + (r.lignes > 1 ? "s" : "") + ".");
       dessinerResultats(); chargerResultats(); verifierRemise();
@@ -849,7 +841,7 @@
     if (a === "reinit") { S.res.confirmReinit = true; dessinerResultats(); return; }
     if (a === "reinit-non") { S.res.confirmReinit = false; dessinerResultats(); return; }
     if (a === "reinit-ok") { reinitialiser(); return; }
-    if (a === "nouveau") { envoyerSansAttendre(); persist(); chargerRapport(""); S.confirmEffacer = false; render(); toast("Nouveau rapport : choisissez le groupe puis « Créer le rapport »."); return; }
+    if (a === "nouveau") { envoyerSansAttendre(); persist(); chargerRapport(""); S.confirmEffacer = false; render(); toast("Nouvelle réponse : indiquez votre prénom, votre nom et votre fonction."); return; }
     if (a === "reprendre") { envoyerSansAttendre(); persist(); chargerRapport(b.dataset.id); S.confirmEffacer = false; go("/univers"); viderFile(); return; }
     if (a === "effacer-local") { e.preventDefault(); S.confirmEffacer = b.dataset.id || (S.participant && S.participant.id) || false; render(); return; }
     if (a === "effacer-non") { S.confirmEffacer = false; render(); return; }
@@ -857,7 +849,7 @@
       const id = S.confirmEffacer; S.confirmEffacer = false;
       if (S.participant && S.participant.id === id) { envoyerSansAttendre(); chargerRapport(""); }
       if (id) lsDel(PREFIXE + id);
-      render(); toast("Rapport effacé de cet ordinateur. Les réponses déjà envoyées restent dans la base."); return;
+      render(); toast("Réponse effacée de cet ordinateur. Les cotations déjà envoyées restent dans la base."); return;
     }
     // Saisie : pastilles de cotation
     const r = route(); if (r.name !== "saisie") return;
@@ -878,7 +870,6 @@
   bottom.addEventListener("click", e => { const b = e.target.closest("[data-act=enregistrer]"); if (b) enregistrer(b.dataset.code, b.dataset.suite); });
   app.addEventListener("change", e => {
     const el = e.target;
-    if (el.name === "perim") { const z = document.getElementById("f-metiers"); if (z) z.classList.toggle("inactif", el.value !== "sacicap"); }
     if (el.dataset.filtre !== undefined) { S.res.filtres[el.dataset.filtre] = el.value; dessinerResultats(); }
     if (el.dataset.seuil !== undefined) { S.res.seuil = Number(el.value); dessinerResultats(); }
   });
@@ -909,7 +900,7 @@
   /* ---------- Démarrage ---------- */
   async function init() {
     try {
-      const [ref, soc] = await Promise.all([fetch("referentiel.json").then(r => r.json()), fetch("societes.json").then(r => r.json())]);
+      const [ref, soc] = await Promise.all([fetch("referentiel.json?v=" + VERSION).then(r => r.json()), fetch("societes.json?v=" + VERSION).then(r => r.json())]);
       S.ref = ref; S.soc = soc; indexer(ref);
     } catch (e) {
       app.innerHTML = '<div class="bandeau erreur">Le référentiel n\'a pas pu être chargé. Rechargez la page.</div>'; return;

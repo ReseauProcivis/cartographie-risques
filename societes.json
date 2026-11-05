@@ -1,11 +1,5 @@
 {
- "_commentaire": "Menu « Groupe » du formulaire, commun à toutes les SACICAP (29 octobre 2026). Un conseil peut travailler en plusieurs groupes, comme au séminaire du 20 octobre, ou chacun répondre seul. L'ordre fixe la couleur des points de chaque groupe sur la matrice des résultats.",
- "societes": [
-  "Groupe 1",
-  "Groupe 2",
-  "Groupe 3",
-  "Réponse individuelle"
- ],
+ "_commentaire": "Menu « Fonction » du formulaire, commun à toutes les SACICAP. Depuis le 5 novembre 2026, chacun répond en son nom (prénom, nom, fonction) : il n'y a plus de menu « Groupe ».",
  "fonctions": [
   "Présidence",
   "Administrateur ou administratrice",
