@@ -15,7 +15,7 @@
   const PARAMS = new URLSearchParams(location.search);
   const SESSION = PARAMS.get("s") || CFG.session || "";
   // Version des fichiers de données : à changer à chaque mise en ligne, comme celle des scripts dans index.html
-  const VERSION = "2026-11-05-suppression";
+  const VERSION = "2026-11-05-suppression2";
   // Copie figée d'une session (dossier archives/, 29 octobre 2026) : config.js porte « archive » et la page ne fait
   // que lire. Pas de formulaire, pas d'envoi, pas de rafraîchissement ni de remise à zéro.
   // Une archive ou un formulaire fermé passent aussi dans ce mode au démarrage (infos_session).
@@ -305,8 +305,9 @@
       h += `<div class="bloc-titre">${t(b.nom)}</div>`;
       us.forEach(u => {
         const pr = progression(u);
+        const nSup = supprimesDe(null, u.code).length;
         const chip = pr.etat === "termine" ? '<span class="chip ok">Terminé</span>' : pr.etat === "encours" ? `<span class="chip encours">${pr.fait}/${pr.tot}</span>` : '<span class="chip">À faire</span>';
-        h += `<button class="ucard" data-act="ouvrir" data-code="${u.code}"><span class="code">${u.code}</span><span class="nom">${t(u.court || u.nom)}<span class="meta">${pr.totR} risques à coter · ${pr.totQ} mesures à évaluer</span></span>${chipEnvoi(u.code)}${chip}</button>`;
+        h += `<button class="ucard" data-act="ouvrir" data-code="${u.code}"><span class="code">${u.code}</span><span class="nom">${t(u.court || u.nom)}<span class="meta">${pr.totR} risques à coter · ${pr.totQ} mesures à évaluer</span></span>${nSup ? `<span class="chip" title="À rétablir depuis la partie 1 du chapitre">${nSup} risque${nSup > 1 ? "s" : ""} supprimé${nSup > 1 ? "s" : ""}</span>` : ""}${chipEnvoi(u.code)}${chip}</button>`;
       });
     });
     h += `<p class="small muted" style="margin-top:18px"><a href="#/aide">Cadre de référence : textes et échelles</a></p>`;
@@ -393,7 +394,9 @@
           <h3>Supprimer un risque</h3>
           <p class="small muted">Un risque de ce chapitre ne concerne pas votre SACICAP ? Retirez-le de votre formulaire : il n'est plus à coter, et les mesures qui ne couvrent que lui sortent de la partie 2.</p>
           <button type="button" class="btn" data-act="suppr-ouvrir">Supprimer un risque</button>
-          ${m.supprimes.length ? `<p class="small muted supprimes">Risques supprimés de votre formulaire : ${m.supprimes.map(id => `<span class="lien" title="${esc(libItem(id))}">${esc(id)}</span> <button type="button" class="btn lien" data-act="suppr-retablir" data-id="${esc(id)}">Rétablir</button>`).join(" · ")}</p>` : ""}
+          ${m.supprimes.length ? `<div class="supprimes"><h4>Risques supprimés de ce chapitre (${m.supprimes.length})</h4>
+            <p class="small muted">Supprimé par erreur ? « Rétablir » remet le risque dans la liste ; il sera de nouveau à coter.</p>
+            <ul>${m.supprimes.map(id => `<li><span class="code">${esc(id)}</span><span class="txt">${esc(libItem(id))}</span><button type="button" class="btn" data-act="suppr-retablir" data-id="${esc(id)}">Rétablir</button></li>`).join("")}</ul></div>` : ""}
         </div>
       </div>
       <div class="panel">

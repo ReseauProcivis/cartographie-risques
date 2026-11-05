@@ -301,4 +301,11 @@ body.modale-ouverte { overflow: hidden; }
 .modale-item:hover, .modale-item:focus-visible { background: #FFE0E7; outline: none; }
 .modale-item .code { flex: none; width: 72px; font-size: .78rem; font-weight: 700; color: var(--vert-fonce); padding-top: 3px; }
 .modale .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-.supprimes { margin-top: 10px; }
+.supprimes { margin-top: 14px; padding: 12px 14px; border: 1px solid #FFB3C2; background: #FFF5F7; border-radius: 10px; }
+.supprimes h4 { margin: 0 0 2px; font-size: .95rem; }
+.supprimes p { margin: 0 0 8px; }
+.supprimes ul { list-style: none; margin: 0; padding: 0; }
+.supprimes li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #FFD0DA; }
+.supprimes .code { flex: none; width: 66px; font-size: .78rem; font-weight: 700; color: var(--vert-fonce); }
+.supprimes .txt { flex: 1; min-width: 0; }
+@media (max-width: 600px) { .supprimes li { flex-wrap: wrap; } .supprimes .txt { flex-basis: 100%; order: 3; } }
