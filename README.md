@@ -38,6 +38,10 @@ Inscrire une SACICAP : une ligne dans `sessions` (code `sacicap-<nom>-<6 caract�
 
 Depuis le 5 novembre 2026, chacun répond en son nom : prénom, nom, fonction, puis les métiers exercés par la SACICAP. Il n'y a plus de groupe ni de choix de périmètre. Dans la base, la colonne `prenom` porte « Prénom Nom » et la colonne `societe` reste vide. Les résultats donnent la moyenne de toutes les réponses ; le filtre « Répondant » isole celles d'une personne.
 
+## Deux parties par univers
+
+À la demande de Guillaume Macher (5 novembre 2026), chaque univers se remplit en deux temps : la partie 1 cote les risques (probabilité, impact, accepter ou réduire), la partie 2 évalue la maîtrise, mesure par mesure (non, en partie, formalisé, formalisé et contrôlé, je ne sais pas, non concerné). Chaque partie permet d'ajouter un item, coté comme les autres : un risque (`CODE-RX1`) ou une mesure (`CODE-X1`). Dans la base, `cotation` porte `{p, i, t}` par risque et les risques ajoutés sous `_ajouts` ; `maitrise` porte la réponse par mesure et les mesures ajoutées sous `_ajouts`.
+
 ## Sur un même ordinateur
 
 Les rapports en cours sont rangés par SACICAP dans le navigateur (`carto.s.<code>.r.<id>`) : deux SACICAP testées sur le même ordinateur ne se mélangent pas, et rien ne se mêle aux rapports du séminaire.

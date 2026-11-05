@@ -115,6 +115,9 @@ details.cadre summary { cursor: pointer; color: var(--accent-bleu); font-weight:
 .q.ajoutee { background: var(--vert-pale); border-top: 0; border-radius: 10px; padding: 14px 12px; margin-top: 8px; }
 .q.ajoutee .chip { vertical-align: middle; }
 .ajout-actions { margin-top: 6px; }
+.risque.ajoute { background: var(--vert-pale); border-top: 0; border-radius: 10px; padding: 14px 12px; margin-top: 8px; }
+.risque.ajoute .lib .code { width: auto; }
+.risque.ajoute .chip { vertical-align: middle; }
 .ajout-ligne { display: flex; flex-wrap: wrap; gap: 8px; }
 .ajout-ligne input[type=text] { flex: 1 1 240px; width: auto; }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; }
