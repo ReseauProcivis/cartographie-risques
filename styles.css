@@ -255,7 +255,7 @@ table.res tr.hors td:first-child { border-left: 3px solid var(--encre); }
 .newform fieldset.mets legend { font-weight: 600; font-size: .9rem; padding: 0 4px; }
 .newform fieldset.mets label { display: flex; gap: 8px; align-items: flex-start; font-size: .92rem; cursor: pointer; }
 .newform fieldset.mets input { margin-top: 3px; accent-color: var(--vert-fonce); }
-.newform .cache { display: none; }
+.newform label.f.cache { display: none; }
 .newform .note { font-size: .84rem; color: var(--encre-3); margin: 10px 0 0; }
 .rapports .rap-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 table.rap td, table.rap th { padding: 12px 14px; }

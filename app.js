@@ -15,7 +15,7 @@
   const PARAMS = new URLSearchParams(location.search);
   const SESSION = PARAMS.get("s") || CFG.session || "";
   // Version des fichiers de données : à changer à chaque mise en ligne, comme celle des scripts dans index.html
-  const VERSION = "2026-11-05-groupes";
+  const VERSION = "2026-11-05-groupes2";
   // Copie figée d'une session (dossier archives/, 29 octobre 2026) : config.js porte « archive » et la page ne fait
   // que lire. Pas de formulaire, pas d'envoi, pas de rafraîchissement ni de remise à zéro.
   // Une archive ou un formulaire fermé passent aussi dans ce mode au démarrage (infos_session).
