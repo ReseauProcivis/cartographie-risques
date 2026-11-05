@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QR code de la cartographie</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2026-11-05-qr">
 <style>
   .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   #qr { background: #fff; padding: 18px; border-radius: 12px; border: 1px solid var(--bordure); }
@@ -17,14 +17,17 @@
 <header class="topbar"><div class="topbar-in"><a href="./" aria-label="Accueil"><img src="assets/logo-procivis.png" alt="Procivis"></a><div class="titre">QR code de la cartographie</div></div></header>
 <main class="page">
   <div class="panel">
-    <h1>QR code pour la slide</h1>
-    <p class="small muted">Par défaut, le code pointe vers l'adresse publique de cette application. Vous pouvez saisir une autre adresse (par exemple avec un paramètre de session <code>?s=...</code>).</p>
-    <label class="champ" for="u">Adresse encodée</label>
-    <input type="text" id="u">
+    <h1 id="titre">QR code pour la slide</h1>
+    <p class="small muted" id="aide">Par défaut, le code pointe vers l'adresse publique de cette application. Vous pouvez saisir une autre adresse (par exemple avec un paramètre de session <code>?s=...</code>).</p>
+    <div id="reglage">
+      <label class="champ" for="u">Adresse encodée</label>
+      <input type="text" id="u">
+    </div>
     <div class="actions"><button class="btn primaire" id="gen">Générer</button><button class="btn" id="dl">Télécharger en PNG</button></div>
   </div>
   <div class="panel qr-wrap"><div id="qr"></div><div class="url" id="txt"></div></div>
 </main>
+<script src="config.js?v=2026-11-05-qr"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
   const base = location.href.replace(/qr\.html.*$/, "");
@@ -42,6 +45,22 @@
     const a = document.createElement("a"); a.href = c.toDataURL("image/png"); a.download = "qr-carto-risques" + (code ? "-" + code : "") + ".png"; a.click();
   });
   gen();
+  // Page ouverte avec le code d'une SACICAP (lien reçu par mail) : rien à régler, seulement le QR code de son formulaire
+  // et le bouton de téléchargement. Le nom de la SACICAP est lu dans la base, comme sur le formulaire.
+  if (code && !q.get("u")) {
+    document.getElementById("titre").textContent = "QR code du formulaire";
+    document.getElementById("aide").textContent = "Scannez ce code avec un téléphone pour ouvrir le formulaire, ou téléchargez-le pour l'afficher en séance.";
+    document.getElementById("reglage").hidden = true;
+    document.getElementById("gen").style.display = "none";   // « hidden » ne suffit pas : .btn impose display: inline-flex
+    document.getElementById("dl").classList.add("primaire");
+    const C = window.CARTO_CONFIG || {};
+    if (C.supabaseUrl && C.supabaseAnonKey) {
+      fetch(C.supabaseUrl.replace(/\/$/, "") + "/rest/v1/rpc/infos_session", { method: "POST", headers: { apikey: C.supabaseAnonKey, Authorization: "Bearer " + C.supabaseAnonKey, "Content-Type": "application/json" }, body: JSON.stringify({ p_session: code }) })
+        .then(r => r.ok ? r.json() : [])
+        .then(l => { if (Array.isArray(l) && l[0] && l[0].libelle) { document.getElementById("titre").textContent = "QR code du formulaire de " + l[0].libelle; document.title = "QR code · " + l[0].libelle; } })
+        .catch(() => { /* le QR code reste utilisable sans le nom */ });
+    }
+  }
 </script>
 </body>
 </html>
