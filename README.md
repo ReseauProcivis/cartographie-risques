@@ -42,6 +42,10 @@ Le formulaire demande seulement le groupe du répondant (conseil d'administratio
 
 À la demande de Guillaume Macher (5 novembre 2026), chaque univers se remplit en deux temps : la partie 1 cote les risques (probabilité, impact, accepter ou réduire), la partie 2 évalue la maîtrise, mesure par mesure (non, en partie, formalisé, formalisé et contrôlé, je ne sais pas, non concerné). Chaque partie permet d'ajouter un item, coté comme les autres. Un item ajouté prend le numéro qui suit le dernier du chapitre (`GOV-R8` après `GOV-R7`). Un risque ajouté crée son item miroir en partie 2 : une mesure du même libellé, liée au risque, pour évaluer sa maîtrise ; elle disparaît avec lui. Dans la base, `cotation` porte `{p, i, t}` par risque et les risques ajoutés sous `_ajouts` (`{id, texte, p, i, t, mesure}`) ; `maitrise` porte la réponse par mesure et les mesures ajoutées sous `_ajouts` (`{id, texte, v, risque}`).
 
+## Supprimer un risque
+
+En partie 1, « Supprimer un risque » ouvre la liste des risques du chapitre ; un clic sur un risque demande confirmation (oui / non). Le risque supprimé garde son identifiant (les autres ne sont pas renumérotés), n'est plus à coter, et une mesure qui ne couvre plus aucun risque restant sort de la partie 2. Il peut être rétabli depuis la partie 1. Dans la base, les risques supprimés sont listés sous `cotation._supprimes` ; les résultats les montrent dans « Risques supprimés par les répondants ».
+
 ## Sur un même ordinateur
 
 Les rapports en cours sont rangés par SACICAP dans le navigateur (`carto.s.<code>.r.<id>`) : deux SACICAP testées sur le même ordinateur ne se mélangent pas, et rien ne se mêle aux rapports du séminaire.

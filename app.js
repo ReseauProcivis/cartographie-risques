@@ -15,7 +15,7 @@
   const PARAMS = new URLSearchParams(location.search);
   const SESSION = PARAMS.get("s") || CFG.session || "";
   // Version des fichiers de données : à changer à chaque mise en ligne, comme celle des scripts dans index.html
-  const VERSION = "2026-11-05-groupes2";
+  const VERSION = "2026-11-05-suppression";
   // Copie figée d'une session (dossier archives/, 29 octobre 2026) : config.js porte « archive » et la page ne fait
   // que lire. Pas de formulaire, pas d'envoi, pas de rafraîchissement ni de remise à zéro.
   // Une archive ou un formulaire fermé passent aussi dans ce mode au démarrage (infos_session).
@@ -113,16 +113,25 @@
     if (!m.maitrise) m.maitrise = {};
     if (!Array.isArray(m.ajouts)) m.ajouts = [];
     if (!Array.isArray(m.risquesAjoutes)) m.risquesAjoutes = [];
+    if (!Array.isArray(m.supprimes)) m.supprimes = [];
     return m;
   };
+  /* Risques supprimés par le répondant (5 novembre 2026) : un risque du référentiel retiré du formulaire est noté dans
+     « supprimes » de son univers. Il garde son identifiant (pas de renumérotation : les résultats se comparent par
+     identifiant), n'est plus à coter, et une mesure qui ne couvre plus aucun risque restant sort de la partie 2. */
+  const supprimesDe = (mes, code) => { const m = (mes || S.mes)[code]; return m && Array.isArray(m.supprimes) ? m.supprimes : []; };
+  const estSupprime = (rid, mes) => { const x = S.items[rid]; return !!x && supprimesDe(mes, x.u.code).includes(rid); };
+  const risquesVisibles = (u, mes) => u.risques.filter(r => !supprimesDe(mes, u.code).includes(r.id));
+  const mesuresVisibles = (u, mes) => u.questions.filter(q => { const rs = S.parMesure[q.id] || []; return !rs.length || rs.some(rid => !estSupprime(rid, mes)); });
 
   // Un univers est terminé quand chaque risque est coté (probabilité et impact) et chaque mesure évaluée, items ajoutés compris
   function progression(u, mes) {
     const m = (mes || S.mes)[u.code] || {}, cot = m.cotation || {}, mai = m.maitrise || {};
     const ra = Array.isArray(m.risquesAjoutes) ? m.risquesAjoutes : [], ma = Array.isArray(m.ajouts) ? m.ajouts : [];
-    const r = u.risques.filter(x => cot[x.id] && cot[x.id].p && cot[x.id].i).length + ra.filter(a => a.p && a.i).length;
-    const q = u.questions.filter(x => coteV(mai[x.id])).length + ma.filter(a => coteV(a.v)).length;
-    const totR = u.risques.length + ra.length, totQ = u.questions.length + ma.length, fait = r + q, tot = totR + totQ;
+    const rv = risquesVisibles(u, mes), qv = mesuresVisibles(u, mes);
+    const r = rv.filter(x => cot[x.id] && cot[x.id].p && cot[x.id].i).length + ra.filter(a => a.p && a.i).length;
+    const q = qv.filter(x => coteV(mai[x.id])).length + ma.filter(a => coteV(a.v)).length;
+    const totR = rv.length + ra.length, totQ = qv.length + ma.length, fait = r + q, tot = totR + totQ;
     return { fait, tot, r, q, totR, totQ, etat: fait === 0 ? "afaire" : fait < tot ? "encours" : "termine" };
   }
   const criticitesLocales = (act, mes) => {
@@ -149,7 +158,7 @@
     const x = S.items[id], ailleurs = x && x.u.code !== code;
     return `<span class="lien${ailleurs ? " ailleurs" : ""}" title="${esc(libItem(id))}">${esc(id)}${ailleurs ? ` <small>(${t(x.u.court)})</small>` : ""}</span>`;
   }).join(" ");
-  const liensMesure = (id, code) => { const rs = S.parMesure[id] || []; return `<div class="liens">${rs.length ? "Risques couverts : " + chipsLiens(rs, code) : '<span class="orphelin">Aucun risque lié</span>'}</div>`; };
+  const liensMesure = (id, code) => { const rs = (S.parMesure[id] || []).filter(r => !estSupprime(r)); return `<div class="liens">${rs.length ? "Risques couverts : " + chipsLiens(rs, code) : '<span class="orphelin">Aucun risque lié</span>'}</div>`; };
   const liensRisque = (r, code) => {
     const ms = r.mesures || [];
     const subi = r.subi ? '<span class="chip subi" title="Événement extérieur qu\'on ne peut pas empêcher : il se surveille, et il s\'accepte ou se réduit par un plan d\'action">Risque subi</span>' : "";
@@ -170,6 +179,7 @@
 
   /* ---------- Rendu ---------- */
   function render() {
+    if (S.modale) fermerModale();
     envoyerSansAttendre();
     const r = route();
     app.className = "page" + (r.name === "resultats" || r.name === "accueil" ? " large" : "");
@@ -296,7 +306,7 @@
       us.forEach(u => {
         const pr = progression(u);
         const chip = pr.etat === "termine" ? '<span class="chip ok">Terminé</span>' : pr.etat === "encours" ? `<span class="chip encours">${pr.fait}/${pr.tot}</span>` : '<span class="chip">À faire</span>';
-        h += `<button class="ucard" data-act="ouvrir" data-code="${u.code}"><span class="code">${u.code}</span><span class="nom">${t(u.court || u.nom)}<span class="meta">${u.risques.length} risques à coter · ${u.questions.length} mesures à évaluer</span></span>${chipEnvoi(u.code)}${chip}</button>`;
+        h += `<button class="ucard" data-act="ouvrir" data-code="${u.code}"><span class="code">${u.code}</span><span class="nom">${t(u.court || u.nom)}<span class="meta">${pr.totR} risques à coter · ${pr.totQ} mesures à évaluer</span></span>${chipEnvoi(u.code)}${chip}</button>`;
       });
     });
     h += `<p class="small muted" style="margin-top:18px"><a href="#/aide">Cadre de référence : textes et échelles</a></p>`;
@@ -368,7 +378,7 @@
       <div class="panel">
         <div class="section-titre"><span class="num">1</span><h2>Cotation des risques</h2></div>
         <p class="small muted intro-mesures">Cotez chaque risque selon ce qui existe réellement aujourd'hui. Les mesures de maîtrise citées sous chaque risque sont détaillées en partie 2, où vous les évaluerez.</p>
-        ${u.risques.map(r => blocRisque(r.id, t(r.libelle), m.cotation[r.id] || {}, liensRisque(r, u.code), false)).join("")}
+        ${risquesVisibles(u).map(r => blocRisque(r.id, t(r.libelle), m.cotation[r.id] || {}, liensRisque(r, u.code), false)).join("")}
         <div class="ajout-zone">
           <h3>Ajouter un risque</h3>
           <p class="small muted">Un risque manque dans ce chapitre ? Formulez-le : il prend le numéro suivant, se cote comme les autres, et sa maîtrise s'évalue en partie 2 (${MAX_AJOUTS} au plus par chapitre).</p>
@@ -379,11 +389,17 @@
             <div class="ajout-ligne"><input type="text" id="ajoutr-texte" maxlength="300" placeholder="Ex. Perte d'un partenaire bancaire historique"><button class="btn" type="submit">Ajouter</button></div>
           </form>` : `<p class="small muted">Nombre maximal de risques ajoutés atteint pour ce chapitre (${MAX_AJOUTS}).</p>`}
         </div>
+        <div class="ajout-zone">
+          <h3>Supprimer un risque</h3>
+          <p class="small muted">Un risque de ce chapitre ne concerne pas votre SACICAP ? Retirez-le de votre formulaire : il n'est plus à coter, et les mesures qui ne couvrent que lui sortent de la partie 2.</p>
+          <button type="button" class="btn" data-act="suppr-ouvrir">Supprimer un risque</button>
+          ${m.supprimes.length ? `<p class="small muted supprimes">Risques supprimés de votre formulaire : ${m.supprimes.map(id => `<span class="lien" title="${esc(libItem(id))}">${esc(id)}</span> <button type="button" class="btn lien" data-act="suppr-retablir" data-id="${esc(id)}">Rétablir</button>`).join(" · ")}</p>` : ""}
+        </div>
       </div>
       <div class="panel">
         <div class="section-titre"><span class="num">2</span><h2>Maîtrise des risques</h2></div>
         <p class="small muted intro-mesures">Pour chaque mesure de maîtrise, indiquez si elle est en place aujourd'hui. Sous chaque mesure figurent les risques qu'elle couvre.</p>
-        ${u.questions.map(q => blocMaitrise(q.id, t(txtQ(q)), m.maitrise[q.id], "maitrise", false, u.code)).join("")}
+        ${mesuresVisibles(u).map(q => blocMaitrise(q.id, t(txtQ(q)), m.maitrise[q.id], "maitrise", false, u.code)).join("")}
         <div class="ajout-zone">
           <h3>Ajouter une mesure de maîtrise</h3>
           <p class="small muted">Une mesure manque dans ce chapitre ? Formulez-la : elle prend le numéro suivant et s'évalue comme les autres (${MAX_AJOUTS} au plus par chapitre). Chaque risque ajouté en partie 1 figure aussi ici, pour évaluer sa maîtrise.</p>
@@ -428,6 +444,9 @@
 
   function ligne(code) {
     const m = mesU(code), p = S.participant, ma = mesuresAjoutees(m), ra = risquesAjoutes(m);
+    // Les mesures sorties de la partie 2 (leurs risques sont tous supprimés) ne partent pas ; les risques supprimés sont listés sous _supprimes
+    const gardees = new Set(mesuresVisibles(parCode(code)).map(q => q.id));
+    const maitrise = Object.fromEntries(Object.entries(m.maitrise).filter(([k]) => gardees.has(k)));
     return {
       // La colonne « societe » porte le groupe du répondant ; « prenom » et « fonction » ne servent plus.
       session: SESSION, participant_id: p.id, prenom: null, societe: nomComplet(p).slice(0, 120), fonction: null,
@@ -435,12 +454,12 @@
       // « maitrise » : réponse par mesure (0 à 3, "nsp" ou "na"), plus les mesures ajoutées sous _ajouts (liste {id, texte, v,
       // risque} ; « risque » désigne le risque ajouté dont la mesure est le miroir).
       // « cotation » : {p, i, t} par risque, plus les risques ajoutés sous _ajouts (liste {id, texte, p, i, t, mesure}).
-      maitrise: ma.length ? { ...m.maitrise, _ajouts: ma } : { ...m.maitrise },
-      cotation: ra.length ? { ...m.cotation, _ajouts: ra } : m.cotation, remarques: null, version_ref: S.ref.version
+      maitrise: ma.length ? { ...maitrise, _ajouts: ma } : maitrise,
+      cotation: { ...m.cotation, ...(ra.length ? { _ajouts: ra } : {}), ...(m.supprimes.length ? { _supprimes: m.supprimes } : {}) }, remarques: null, version_ref: S.ref.version
     };
   }
   const empreinte = row => JSON.stringify([row.maitrise, row.cotation, row.prenom, row.societe, row.fonction, row.perimetre, row.metiers]);
-  const aEnvoyer = (u, m) => progression(u).fait > 0 || mesuresAjoutees(m).length > 0 || risquesAjoutes(m).length > 0 || !!m.envoye;
+  const aEnvoyer = (u, m) => progression(u).fait > 0 || mesuresAjoutees(m).length > 0 || risquesAjoutes(m).length > 0 || (m.supprimes || []).length > 0 || !!m.envoye;
 
   async function envoyer(code, opts) {
     opts = opts || {};
@@ -506,6 +525,66 @@
       if (r.name === "univers") redessinerUnivers(); else if (r.name === "saisie") { const u = parCode(r.code); if (u) majBarre(u); }
     }
   }
+
+  /* ---------- Suppression d'un risque (5 novembre 2026) ----------
+     « Supprimer un risque » ouvre une fenêtre avec la liste des risques du chapitre ; un clic sur un risque ouvre une
+     seconde fenêtre, plus petite, qui demande confirmation. « Oui » retire le risque et redessine le formulaire. */
+  const modale = document.createElement("div");
+  modale.id = "modale"; document.body.appendChild(modale);
+  function dessinerModale() {
+    const r = route(), M = S.modale;
+    if (!M || r.name !== "saisie" || !S.participant) { S.modale = null; modale.innerHTML = ""; document.body.classList.remove("modale-ouverte"); return; }
+    const u = parCode(r.code), m = mesU(r.code);
+    const liste = [...risquesVisibles(u).map(x => ({ id: x.id, texte: fr(x.libelle), ajoute: false })), ...m.risquesAjoutes.map(x => ({ id: x.id, texte: x.texte, ajoute: true }))];
+    let h = `<div class="modale-fond"><div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-titre">
+      <h2 id="modale-titre">Supprimer un risque</h2>
+      <p class="small muted">${t(u.court || u.nom)} : cliquez sur le risque à retirer de votre formulaire.</p>
+      ${liste.length ? `<ul class="modale-liste">${liste.map(x => `<li><button type="button" class="modale-item" data-act="suppr-choisir" data-id="${esc(x.id)}"><span class="code">${esc(x.id)}</span><span>${esc(x.texte)}${x.ajoute ? ' <span class="chip accent">Risque ajouté</span>' : ""}</span></button></li>`).join("")}</ul>` : '<p class="muted">Il ne reste aucun risque dans ce chapitre.</p>'}
+      <div class="actions"><button type="button" class="btn" data-act="modale-fermer">Fermer</button></div>
+    </div></div>`;
+    if (M.type === "confirmer") {
+      const x = liste.find(y => y.id === M.id);
+      if (x) h += `<div class="modale-fond dessus"><div class="modale petite" role="alertdialog" aria-modal="true" aria-labelledby="modale-confirmer">
+        <h2 id="modale-confirmer">Supprimer ${esc(x.id)} ?</h2>
+        <p>« ${esc(x.texte)} »</p>
+        <p class="small muted">Le risque et sa cotation disparaissent de votre formulaire.${x.ajoute ? "" : " Vous pourrez le rétablir depuis la partie 1."}</p>
+        <div class="actions"><button type="button" class="btn danger" data-act="suppr-oui" data-id="${esc(x.id)}">Oui</button><button type="button" class="btn" data-act="suppr-non">Non</button></div>
+      </div></div>`;
+    }
+    modale.innerHTML = h; document.body.classList.add("modale-ouverte");
+    const cible = modale.querySelector(M.type === "confirmer" ? "[data-act=suppr-non]" : ".modale-item, [data-act=modale-fermer]"); if (cible) cible.focus();
+  }
+  const fermerModale = () => { S.modale = null; dessinerModale(); };
+  // Les autres univers déjà envoyés repartent si une mesure y est sortie ou revenue (envoyer ne fait rien sans changement)
+  const renvoyerAutres = code => Object.keys(S.mes).forEach(c => { if (c !== code && S.mes[c] && S.mes[c].envoye) envoyer(c); });
+  function supprimerRisque(code, id) {
+    const u = parCode(code), m = mesU(code);
+    if (m.risquesAjoutes.some(x => x.id === id)) { m.risquesAjoutes = m.risquesAjoutes.filter(x => x.id !== id); m.ajouts = m.ajouts.filter(x => x.risque !== id); }
+    else if (u.risques.some(x => x.id === id)) { if (!m.supprimes.includes(id)) m.supprimes.push(id); delete m.cotation[id]; }
+    else return;
+    m.modifie = Date.now(); persist(); fermerModale(); redessinerSaisie(u); planifierEnvoi(code); renvoyerAutres(code);
+    toast("Risque " + id + " supprimé de votre formulaire.");
+  }
+  function retablirRisque(code, id) {
+    const u = parCode(code), m = mesU(code);
+    m.supprimes = m.supprimes.filter(x => x !== id);
+    m.modifie = Date.now(); persist(); redessinerSaisie(u); planifierEnvoi(code); renvoyerAutres(code);
+    toast("Risque " + id + " rétabli : il est de nouveau à coter.");
+  }
+  modale.addEventListener("click", e => {
+    const r = route();
+    if (e.target.classList.contains("modale-fond")) { if (S.modale && S.modale.type === "confirmer") { S.modale = { type: "liste" }; dessinerModale(); } else fermerModale(); return; }
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const a = b.dataset.act;
+    if (a === "modale-fermer") fermerModale();
+    else if (a === "suppr-choisir") { S.modale = { type: "confirmer", id: b.dataset.id }; dessinerModale(); }
+    else if (a === "suppr-non") { S.modale = { type: "liste" }; dessinerModale(); }
+    else if (a === "suppr-oui" && r.name === "saisie") supprimerRisque(r.code, b.dataset.id);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape" || !S.modale) return;
+    if (S.modale.type === "confirmer") { S.modale = { type: "liste" }; dessinerModale(); } else fermerModale();
+  });
 
   /* ---------- Remise à zéro à distance (19 octobre 2026) ----------
      Le bouton « Remise à zéro » de l'onglet Résultats note l'heure de la remise dans la base
@@ -656,6 +735,7 @@
     const U = {}; S.ref.univers.forEach(u => U[u.code] = { u, n: 0, mat: [], parQ: {}, mesuresAjoutees: [], risquesAjoutes: [] });
     const vide = () => { const R = {}; S.ref.univers.forEach(u => u.risques.forEach(r => R[r.id] = { r, u, p: [], i: [], c: [], acc: 0, red: 0 })); return R; };
     const R = vide(), G = {};   // R : tous groupes confondus (tableaux) ; G : par groupe (matrice, un point par risque et par groupe)
+    const SUP = {};             // risques retirés de leur formulaire par des répondants : identifiant -> groupes
     rows.forEach(row => {
       const cu = U[row.univers]; if (!cu) return;
       cu.n++;
@@ -671,6 +751,7 @@
       ajM.forEach(a => cu.mesuresAjoutees.push({ id: a.id || "", texte: a.texte.trim(), v: coteV(a.v) ? a.v : null, risque: a.risque || "", qui, date: row.created_at }));
       // Un risque ajouté porte la maîtrise donnée à son item miroir de la partie 2
       ajR.forEach(a => { const mir = ajM.find(x => x.risque && x.risque === a.id); cu.risquesAjoutes.push({ id: a.id || "", texte: a.texte.trim(), p: a.p || null, i: a.i || null, t: a.t || null, mesure: a.mesure || "", v: mir && coteV(mir.v) ? mir.v : null, qui, date: row.created_at }); });
+      (row.cotation && Array.isArray(row.cotation._supprimes) ? row.cotation._supprimes : []).forEach(id => { if (R[id]) (SUP[id] = SUP[id] || []).push(qui); });
       Object.entries(row.cotation || {}).forEach(([id, c]) => {
         const cr = R[id]; if (!cr || !c) return;
         if (c.p && c.i) [cr, RG[id]].forEach(x => { x.p.push(c.p); x.i.push(c.i); x.c.push(c.p * c.i); });
@@ -689,6 +770,7 @@
     });
     return {
       reponses: univers.reduce((s, u) => s + u.n, 0), univers, risques, groupes,
+      supprimes: Object.keys(R).filter(id => SUP[id]).map(id => ({ r: R[id].r, u: R[id].u, qui: SUP[id] })),
       cotations: risques.reduce((s, r) => s + r.n, 0),
       maturite: moy(univers.filter(u => u.maturite !== null).map(u => u.maturite)),
       expo: moy(risques.filter(r => r.n).map(r => r.mc)),
@@ -823,7 +905,10 @@
           <p class="small muted">Mesures de maîtrise jugées manquantes dans un chapitre, avec la réponse donnée. Elles n'entrent pas dans la moyenne de maîtrise.</p>
           ${mesAj.length ? mesAj.map(x => `<div class="remarque"><div class="qui"><strong>${t(x.u.court)}</strong> · ${esc(x.qui)} · ${fmtDate(x.date)}</div><div><strong>${esc(x.id)}</strong> ${esc(x.texte)} ${chipMaitrise(x.v)}</div></div>`).join("") : '<p class="muted">Aucune mesure ajoutée pour le moment.</p>'}
         </div>
-      </div>`;
+      </div>
+      ${A.supprimes.length ? `<div class="panel"><h2>Risques supprimés par les répondants (${A.supprimes.length})</h2>
+        <p class="small muted">Risques qu'un répondant a retirés de son formulaire, faute de concerner sa SACICAP. Il ne les a pas cotés ; les cotations des autres répondants restent comptées.</p>
+        <table class="res"><thead><tr><th>Risque</th><th>Univers</th><th>Retiré par</th></tr></thead><tbody>${A.supprimes.map(x => { const c = {}; x.qui.forEach(q => c[q] = (c[q] || 0) + 1); return `<tr><td><strong>${x.r.id}</strong> ${t(x.r.libelle)}</td><td class="small">${t(x.u.court)}</td><td class="small">${Object.entries(c).map(([q, n]) => esc(q) + (n > 1 ? " (" + n + ")" : "")).join(", ")}</td></tr>`; }).join("")}</tbody></table></div>` : ""}`;
     app.innerHTML = h; window.scrollTo(0, y);
   }
 
@@ -848,6 +933,7 @@
         if (c.p && c.i) out.push([...base, "criticite", rr.id, fr(rr.libelle), c.p * c.i, niveau(c.p * c.i).l]);
         if (c.t) out.push([...base, "traitement", rr.id, fr(rr.libelle), c.t, c.t === "red" ? "Réduire" : "Accepter"]);
       });
+      ((r.cotation || {})._supprimes || []).forEach(id => { const x = S.items[id]; if (x) out.push([...base, "risque_supprime", id, fr(x.it.libelle), "", "Retiré du formulaire"]); });
       ((r.cotation || {})._ajouts || []).forEach(a => { if (!a || !a.texte) return; out.push([...base, "risque_ajoute", a.id || "", fr(a.texte), a.p && a.i ? a.p * a.i : "", [a.p ? "probabilité " + a.p : "", a.i ? "impact " + a.i : "", libTraitement(a.t)].filter(Boolean).join(", ")]); });
       u.questions.forEach(q => { const v = (r.maitrise || {})[q.id]; if (!coteV(v)) return; out.push([...base, "maitrise", q.id, fr(q.texte), v, libMaitrise(v)]); });
       ((r.maitrise || {})._ajouts || []).forEach(a => { if (!a || !a.texte) return; out.push([...base, a.risque ? "maitrise_risque_ajoute" : "mesure_ajoutee", a.id || "", fr(a.texte), a.v ?? "", libMaitrise(a.v)]); });
@@ -933,6 +1019,8 @@
     const r = route(); if (r.name !== "saisie") return;
     const u = parCode(r.code), m = mesU(r.code);
     const valeur = () => isNaN(Number(b.dataset.v)) ? b.dataset.v : Number(b.dataset.v);
+    if (a === "suppr-ouvrir") { S.modale = { type: "liste" }; dessinerModale(); return; }
+    if (a === "suppr-retablir") { retablirRisque(r.code, b.dataset.id); return; }
     const allumer = on => b.parentElement.querySelectorAll(".pill").forEach(x => x.classList.toggle("on", x === b && on));
     if (a === "ajout-retirer" || a === "ajoutr-retirer") {
       if (a === "ajout-retirer") m.ajouts = m.ajouts.filter(x => x.id !== b.dataset.id);
