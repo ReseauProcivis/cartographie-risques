@@ -1,10 +1,8 @@
 {
- "_commentaire": "Menu « Fonction » du formulaire, commun à toutes les SACICAP. Depuis le 5 novembre 2026, chacun répond en son nom (prénom, nom, fonction) : il n'y a plus de menu « Groupe ».",
- "fonctions": [
-  "Présidence",
-  "Administrateur ou administratrice",
-  "Direction générale",
-  "Collaborateur ou collaboratrice",
-  "Autre"
+ "_commentaire": "Menu « Groupe » du formulaire, commun à toutes les SACICAP (5 novembre 2026). L'option « Autre », ajoutée par la page, ouvre un champ pour saisir un autre groupe. L'ordre fixe la couleur des points de chaque groupe sur la matrice des résultats.",
+ "groupes": [
+  "Conseil d'administration",
+  "Comité de direction",
+  "Collaborateurs"
  ]
 }

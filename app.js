@@ -4,7 +4,8 @@
    partie 2 (cotation des risques) se remplit, et chaque réponse part en direct vers la base partagée.
    Version « un outil par SACICAP » (29 octobre 2026) : la session vient de l'adresse (?s=sacicap-...), son nom et son
    état sont lus dans la base (infos_session, supabase/sessions.sql) et les résultats s'ouvrent avec la clé de la SACICAP.
-   Depuis le 5 novembre 2026 : une réponse par personne (prénom, nom, fonction), plus de groupe ni de choix de périmètre.
+   Depuis le 5 novembre 2026 : plus de choix de périmètre ; chacun indique seulement son groupe (conseil d'administration,
+   comité de direction, collaborateurs, ou un autre à saisir). Les résultats se lisent par groupe.
    Même jour, à la demande de Guillaume Macher : la partie 1 de chaque univers cote les risques, la partie 2 évalue de
    nouveau la maîtrise (mesure par mesure), et chaque partie permet d'ajouter un item, coté comme les autres. */
 (function () {
@@ -14,7 +15,7 @@
   const PARAMS = new URLSearchParams(location.search);
   const SESSION = PARAMS.get("s") || CFG.session || "";
   // Version des fichiers de données : à changer à chaque mise en ligne, comme celle des scripts dans index.html
-  const VERSION = "2026-11-05-maitrise";
+  const VERSION = "2026-11-05-groupes";
   // Copie figée d'une session (dossier archives/, 29 octobre 2026) : config.js porte « archive » et la page ne fait
   // que lire. Pas de formulaire, pas d'envoi, pas de rafraîchissement ni de remise à zéro.
   // Une archive ou un formulaire fermé passent aussi dans ce mode au démarrage (infos_session).
@@ -58,7 +59,7 @@
   }
 
   /* ---------- État ----------
-     Un ordinateur peut porter plusieurs rapports (un par personne) : chacun est rangé dans localStorage et chaque
+     Un ordinateur peut porter plusieurs rapports (un par répondant) : chacun est rangé dans localStorage et chaque
      onglet retient dans sessionStorage celui qu'il remplit. Deux onglets ou deux fenêtres du même ordinateur ne
      partagent pas les mêmes cotations. */
   // Rapports rangés par session (29 octobre 2026) : deux SACICAP ouvertes sur le même ordinateur ne se mélangent pas.
@@ -79,10 +80,10 @@
 
   const S = {
     ref: null, soc: null, store: null, participant: null, mes: {}, file: [],
-    res: { rows: [], maj: null, filtres: { personne: "", bloc: "" }, seuil: Number(CFG.seuilDefaut) || 6, chargement: false, erreur: null, timer: null, actif: false }
+    res: { rows: [], maj: null, filtres: { groupe: "", bloc: "" }, seuil: Number(CFG.seuilDefaut) || 6, chargement: false, erreur: null, timer: null, actif: false }
   };
-  // Nom affiché d'une personne. Les rapports d'avant le 5 novembre 2026 portaient un groupe et un intitulé libre.
-  const nomComplet = p => [p && p.prenom, p && p.nom].map(x => String(x || "").trim()).filter(Boolean).join(" ") || (p && (p.societe || p.fonction)) || "Sans nom";
+  // Groupe du répondant. Les rapports du 5 novembre au matin portaient un prénom et un nom à la place.
+  const nomComplet = p => String((p && p.societe) || "").trim() || [p && p.prenom, p && p.nom].map(x => String(x || "").trim()).filter(Boolean).join(" ") || "Sans groupe";
   // Rapport rempli par cet onglet (vide : formulaire d'accueil vierge)
   function chargerRapport(id) {
     const r = id ? lsGet(PREFIXE + id, null) : null;
@@ -98,12 +99,14 @@
   };
   const parCode = code => S.ref.univers.find(u => u.code === code);
   const MAX_AJOUTS = 5;
-  // Items ajoutés par le répondant : mesures CODE-X1... (partie 2), risques CODE-RX1... (partie 1)
-  const idAjout = (code, list, lettre) => { let n = 1; while (list.some(a => a.id === code + "-" + (lettre || "X") + n)) n++; return code + "-" + (lettre || "X") + n; };
+  // Items ajoutés par le répondant : ils prennent le numéro qui suit le dernier du chapitre (GOV-R8 après GOV-R7,
+  // GOV-M10 après GOV-M9). Un risque ajouté crée son item miroir en partie 2 : une mesure du même libellé, liée au risque.
+  const numero = id => { const x = /-[MR](\d+)/.exec(id || ""); return x ? Number(x[1]) : 0; };
+  const idSuivant = (code, lettre, ...listes) => code + "-" + lettre + (Math.max(0, ...listes.flat().map(x => numero(x.id))) + 1);
   const coteV = v => v !== undefined && v !== null;
   const texteAjout = a => String((a && a.texte) || "").trim().slice(0, 300);
-  const mesuresAjoutees = m => (m && Array.isArray(m.ajouts) ? m.ajouts : []).map(a => ({ id: a.id, texte: texteAjout(a), ...(coteV(a.v) ? { v: a.v } : {}) })).filter(a => a.texte);
-  const risquesAjoutes = m => (m && Array.isArray(m.risquesAjoutes) ? m.risquesAjoutes : []).map(a => ({ id: a.id, texte: texteAjout(a), ...(a.p ? { p: a.p } : {}), ...(a.i ? { i: a.i } : {}), ...(a.t ? { t: a.t } : {}) })).filter(a => a.texte);
+  const mesuresAjoutees = m => (m && Array.isArray(m.ajouts) ? m.ajouts : []).map(a => ({ id: a.id, texte: texteAjout(a), ...(coteV(a.v) ? { v: a.v } : {}), ...(a.risque ? { risque: a.risque } : {}) })).filter(a => a.texte);
+  const risquesAjoutes = m => (m && Array.isArray(m.risquesAjoutes) ? m.risquesAjoutes : []).map(a => ({ id: a.id, texte: texteAjout(a), ...(a.p ? { p: a.p } : {}), ...(a.i ? { i: a.i } : {}), ...(a.t ? { t: a.t } : {}), ...(a.mesure ? { mesure: a.mesure } : {}) })).filter(a => a.texte);
   const mesU = code => {
     const m = (S.mes[code] = S.mes[code] || { cotation: {}, maitrise: {}, ajouts: [], risquesAjoutes: [], modifie: null, envoye: null });
     if (!m.cotation) m.cotation = {};
@@ -194,14 +197,15 @@
   /* ---------- Accueil (reprend la page d'accueil de l'artifact d'origine) ---------- */
   function vueAccueil() {
     const p = S.participant, cur = p || {};
-    const fon = S.soc.fonctions, metiers = S.ref.metiers;
+    const groupes = S.soc.groupes || [], metiers = S.ref.metiers;
+    const autre = !!cur.societe && !groupes.includes(cur.societe);
     const sel = (v, c) => v === c ? " selected" : "";
     const mets = cur.metiers && cur.metiers.length ? cur.metiers : metiers.map(m => m.id);
     const intro = `
       <div class="intro-txt">
         <p class="lead">Un autodiagnostic pour le conseil d'administration : il couvre les métiers du réseau Procivis et les règles propres au statut de SACICAP. Pour chaque univers, il cote les risques, évalue leur maîtrise et les compare à l'appétence au risque choisie par le conseil.</p>
         <div class="etapes">
-          <div class="etape"><b>1</b><p><strong>Se présenter.</strong> Indiquez votre prénom, votre nom et votre fonction, puis cochez les métiers exercés par la SACICAP et ses filiales : seuls les univers correspondants s'affichent.</p></div>
+          <div class="etape"><b>1</b><p><strong>Choisir son groupe.</strong> Indiquez à quel titre vous répondez (conseil d'administration, comité de direction, collaborateurs ou autre), puis cochez les métiers exercés par la SACICAP et ses filiales : seuls les univers correspondants s'affichent.</p></div>
           <div class="etape"><b>2</b><p><strong>Coter.</strong> Pour chaque univers, cotez d'abord chaque risque : probabilité et impact de 1 à 4, en tenant compte de ce qui existe déjà, puis accepter ou réduire. Évaluez ensuite sa maîtrise : chaque mesure est-elle en place ?</p></div>
           <div class="etape"><b>3</b><p><strong>Lire la synthèse.</strong> Les réponses sont compilées en direct, dès les premières cotations, dans l'onglet Résultats, réservé à la SACICAP et ouvert par sa clé d'accès : exposition et maîtrise par univers, matrice des risques, risques hors appétence, export CSV. L'onglet <a href="#/aide">« Cadre de référence »</a> rappelle les textes et les échelles.</p></div>
         </div>
@@ -211,42 +215,38 @@
     const form = `
       <div class="panel">
         <form class="newform" id="f-profil" autocomplete="off">
-          <div class="row">
-            <label class="f" for="f-prenom">Prénom
-              <input type="text" id="f-prenom" maxlength="38" required autocomplete="given-name" value="${esc(cur.prenom || "")}"></label>
-            <label class="f" for="f-nom">Nom
-              <input type="text" id="f-nom" maxlength="38" required autocomplete="family-name" value="${esc(cur.nom || "")}"></label>
-          </div>
-          <label class="f" for="f-fonction">Fonction
-            <select id="f-fonction" required><option value="">Choisir</option>${fon.map(x => `<option value="${esc(x)}"${sel(x, cur.fonction)}>${esc(x)}</option>`).join("")}</select></label>
+          <label class="f" for="f-groupe">Groupe
+            <select id="f-groupe" name="groupe" required><option value="">Choisir</option>${groupes.map(x => `<option value="${esc(x)}"${sel(x, cur.societe)}>${esc(x)}</option>`).join("")}<option value="__autre"${autre ? " selected" : ""}>Autre</option></select></label>
+          <label class="f${autre ? "" : " cache"}" id="f-autre-zone" for="f-autre">Nom du groupe
+            <input type="text" id="f-autre" maxlength="60" value="${esc(autre ? cur.societe : "")}" placeholder="Ex. Comité d'audit"></label>
           <fieldset class="mets" id="f-metiers"><legend>Métiers exercés par la SACICAP et ses filiales</legend>
             ${metiers.map(m => `<label for="f-m-${m.id}"><input type="checkbox" name="met" id="f-m-${m.id}" value="${m.id}"${mets.includes(m.id) ? " checked" : ""}>${t(m.nom)}</label>`).join("")}
           </fieldset>
           <button class="btn primaire" type="submit">${p ? "Mettre à jour" : "Commencer"}</button>
           <p class="note">${S.store.isRemote ? `Chaque cotation est enregistrée en direct et compilée dans les résultats de ${t(CFG.sessionLabel || "la SACICAP")}.` : "Aperçu local : les réponses ne seront pas conservées après fermeture."}</p>
-          ${p ? `<p class="note">Une autre personne sur cet ordinateur ? <button type="button" class="btn lien" data-act="nouveau">Commencer une nouvelle réponse</button> (celle-ci reste dans la liste « Réponses sur cet ordinateur »).</p>`
+          ${p ? `<p class="note">Un autre groupe sur cet ordinateur ? <button type="button" class="btn lien" data-act="nouveau">Commencer une nouvelle réponse</button> (celle-ci reste dans la liste « Réponses sur cet ordinateur »).</p>`
             : liste.length ? `<p class="note">Vous avez déjà commencé sur cet ordinateur ? Reprenez votre réponse dans la liste « Réponses sur cet ordinateur », plus bas.</p>` : ""}
         </form>
       </div>`;
     // Réponses rangées sur cet ordinateur ; celle de cet onglet est marquée. Rien à afficher tant qu'il n'y en a pas.
     let rapports = "";
     if (liste.length) {
-      rapports = `<section class="rapports"><div class="rap-head"><h2>Réponses sur cet ordinateur</h2><span class="muted">${liste.length} personne${liste.length > 1 ? "s" : ""}</span></div>`;
-      rapports += `<div class="panel" style="padding:0;overflow-x:auto"><table class="res rap"><thead><tr><th>Nom</th><th>Fonction</th><th>Mis à jour</th><th>Progression</th><th class="num">Criticité moyenne</th><th></th></tr></thead><tbody>
+      rapports = `<section class="rapports"><div class="rap-head"><h2>Réponses sur cet ordinateur</h2><span class="muted">${liste.length} réponse${liste.length > 1 ? "s" : ""}</span></div>`;
+      rapports += `<div class="panel" style="padding:0;overflow-x:auto"><table class="res rap"><thead><tr><th>Groupe</th><th>Mis à jour</th><th>Progression</th><th class="num">Criticité moyenne</th><th></th></tr></thead><tbody>
         ${liste.map(r => {
           const q = r.participant, mes = r.mes || {}, ici = p && p.id === q.id, act = universActifs(q);
           const tot = act.reduce((x, u) => x + progression(u, mes).tot, 0), fait = act.reduce((x, u) => x + progression(u, mes).fait, 0);
           const crit = moy(criticitesLocales(act, mes));
           const maj = Math.max(0, ...act.map(u => (mes[u.code] || {}).modifie || 0));
           const ouvrir = ici ? `<a class="btn" href="#/univers">Ouvrir</a>` : `<button class="btn" data-act="reprendre" data-id="${esc(q.id)}">Reprendre</button>`;
-          return `<tr><td>${ici ? `<a class="btn lien" href="#/univers">${esc(nomComplet(q))}</a> <span class="chip ok">Cet onglet</span>` : esc(nomComplet(q))}</td><td>${esc(q.fonction || "")}</td><td class="muted">${maj ? fmtDate(maj) : "-"}</td>
+          return `<tr><td>${ici ? `<a class="btn lien" href="#/univers">${esc(nomComplet(q))}</a> <span class="chip ok">Cet onglet</span>` : esc(nomComplet(q))}</td><td class="muted">${maj ? fmtDate(maj) : "-"}</td>
         <td><div style="display:flex;gap:8px;align-items:center;min-width:140px"><div class="progress" style="flex:1"><span style="width:${tot ? Math.round(fait / tot * 100) : 0}%"></span></div><span class="num">${tot ? Math.round(fait / tot * 100) : 0} %</span></div></td>
         <td class="num">${crit === null ? "-" : fmt1(crit) + " / 16"}</td><td style="white-space:nowrap">${ouvrir} <button class="btn lien" data-act="effacer-local" data-id="${esc(q.id)}">Effacer</button></td></tr>`;
         }).join("")}</tbody></table></div>`;
       const aEffacer = S.confirmEffacer && liste.find(r => r.participant.id === S.confirmEffacer);
       rapports += aEffacer
-        ? `<div class="panel confirm-local"><p><strong>Effacer la réponse de ${esc(nomComplet(aEffacer.participant))} de cet ordinateur ?</strong> Les cotations déjà envoyées restent dans la base et dans les résultats.</p><div class="actions"><button class="btn danger" data-act="effacer-ok">Oui, effacer</button><button class="btn" data-act="effacer-non">Annuler</button></div></div>`
-        : `<p class="small muted" style="margin-top:8px">Chaque onglet remplit sa propre réponse : plusieurs personnes peuvent répondre sur le même ordinateur, chacune dans son onglet. « Effacer » retire une réponse de test de cet ordinateur.</p>`;
+        ? `<div class="panel confirm-local"><p><strong>Effacer la réponse « ${esc(nomComplet(aEffacer.participant))} » de cet ordinateur ?</strong> Les cotations déjà envoyées restent dans la base et dans les résultats.</p><div class="actions"><button class="btn danger" data-act="effacer-ok">Oui, effacer</button><button class="btn" data-act="effacer-non">Annuler</button></div></div>`
+        : `<p class="small muted" style="margin-top:8px">Chaque onglet remplit sa propre réponse : plusieurs groupes peuvent répondre sur le même ordinateur, chacun dans son onglet. « Effacer » retire une réponse de test de cet ordinateur.</p>`;
       rapports += "</section>";
     }
     return `
@@ -256,16 +256,15 @@
   }
 
   function soumettreProfil(form) {
-    const prenom = form.querySelector("#f-prenom").value.trim().replace(/\s+/g, " ");
-    const nom = form.querySelector("#f-nom").value.trim().replace(/\s+/g, " ");
-    const fonction = form.querySelector("#f-fonction").value;
+    const choix = form.querySelector("#f-groupe").value;
+    const societe = (choix === "__autre" ? form.querySelector("#f-autre").value : choix).trim().replace(/\s+/g, " ").slice(0, 60);
     const metiers = [...form.querySelectorAll("input[name=met]:checked")].map(x => x.value);
-    if (!prenom || !nom || !fonction) { toast("Indiquez votre prénom, votre nom et votre fonction."); return; }
+    if (!societe) { toast(choix === "__autre" ? "Indiquez le nom de votre groupe." : "Choisissez votre groupe."); return; }
     if (!metiers.length) { toast("Cochez au moins un métier exercé."); return; }
     // « remise » : dernière remise à zéro connue à la création ("?" si la base n'a pas encore répondu)
     const remise = S.participant ? S.participant.remise : (remiseConnue === undefined ? "?" : remiseConnue);
     // Le périmètre n'est plus demandé : chacun répond pour sa SACICAP, sur les métiers cochés
-    S.participant = { id: (S.participant && S.participant.id) || uid(), prenom, nom, fonction, perimetre: "sacicap", metiers, remise };
+    S.participant = { id: (S.participant && S.participant.id) || uid(), societe, perimetre: "sacicap", metiers, remise };
     ssSet(ACTIF, S.participant.id); persist(); go("/univers");
   }
 
@@ -284,7 +283,7 @@
     let h = `
       <div class="panel">
         <div class="resume">
-          <div><strong>${esc(nomComplet(p))}</strong>${p.fonction ? " · " + esc(p.fonction) : ""}<br><span class="small muted">${p.perimetre === "sacicap" && p.metiers && p.metiers.length ? "Métiers : " + p.metiers.map(id => (S.ref.metiers.find(m => m.id === id) || {}).nom || id).join(", ") : "Tous les métiers"}</span></div>
+          <div><strong>${esc(nomComplet(p))}</strong><br><span class="small muted">${p.perimetre === "sacicap" && p.metiers && p.metiers.length ? "Métiers : " + p.metiers.map(id => (S.ref.metiers.find(m => m.id === id) || {}).nom || id).join(", ") : "Tous les métiers"}</span></div>
           <a class="btn lien" href="#/" data-act="editer-profil">Modifier</a>
         </div>
         <div style="margin-top:12px" class="progress" aria-label="Progression"><span style="width:${tot ? Math.round(fait / tot * 100) : 0}%"></span></div>
@@ -336,15 +335,16 @@
           </div>`;
   }
 
-  function blocMaitrise(id, html, val, act, ajoutee, code) {
+  // « miroir » : identifiant du risque ajouté dont cette mesure est le pendant (elle disparaît avec lui)
+  function blocMaitrise(id, html, val, act, ajoutee, code, miroir) {
     const E = S.ref.echelles;
     return `
           <div class="q${ajoutee ? " ajoutee" : ""}" data-q="${esc(id)}">
-            <div class="lib"><span class="code">${esc(id)}</span><p>${html}${ajoutee ? ' <span class="chip accent">Mesure ajoutée</span>' : ""}</p></div>
-            ${ajoutee ? "" : liensMesure(id, code)}
+            <div class="lib"><span class="code">${esc(id)}</span><p>${html}${ajoutee ? ` <span class="chip accent">${miroir ? "Risque ajouté" : "Mesure ajoutée"}</span>` : ""}</p></div>
+            ${ajoutee ? (miroir ? `<div class="liens">Risques couverts : <span class="lien">${esc(miroir)}</span></div>` : "") : liensMesure(id, code)}
             <div class="pills" role="group" aria-label="${esc(id)}">
               ${E.maitrise.map(a => `<button type="button" class="pill${isNaN(Number(a.v)) ? " na" : ""}${coteV(val) && String(val) === String(a.v) ? " on" : ""}" data-act="${act}" data-q="${esc(id)}" data-v="${a.v}">${t(a.l)}</button>`).join("")}
-            </div>${ajoutee ? `<div class="ajout-actions"><button type="button" class="btn lien" data-act="ajout-retirer" data-id="${esc(id)}">Retirer cette mesure</button></div>` : ""}
+            </div>${ajoutee && !miroir ? `<div class="ajout-actions"><button type="button" class="btn lien" data-act="ajout-retirer" data-id="${esc(id)}">Retirer cette mesure</button></div>` : ""}
           </div>`;
   }
 
@@ -371,8 +371,8 @@
         ${u.risques.map(r => blocRisque(r.id, t(r.libelle), m.cotation[r.id] || {}, liensRisque(r, u.code), false)).join("")}
         <div class="ajout-zone">
           <h3>Ajouter un risque</h3>
-          <p class="small muted">Un risque manque dans ce chapitre ? Formulez-le : il s'ajoute à la liste et se cote comme les autres (${MAX_AJOUTS} au plus par chapitre).</p>
-          ${m.risquesAjoutes.map(a => blocRisque(a.id, esc(a.texte), a, "", true)).join("")}
+          <p class="small muted">Un risque manque dans ce chapitre ? Formulez-le : il prend le numéro suivant, se cote comme les autres, et sa maîtrise s'évalue en partie 2 (${MAX_AJOUTS} au plus par chapitre).</p>
+          ${m.risquesAjoutes.map(a => blocRisque(a.id, esc(a.texte), a, a.mesure ? `<div class="liens">Mesures : <span class="lien">${esc(a.mesure)}</span></div>` : "", true)).join("")}
           ${m.risquesAjoutes.length < MAX_AJOUTS ? `
           <form class="q libre" id="f-ajout-r" autocomplete="off">
             <label for="ajoutr-texte" class="small muted">Votre risque</label>
@@ -386,9 +386,9 @@
         ${u.questions.map(q => blocMaitrise(q.id, t(txtQ(q)), m.maitrise[q.id], "maitrise", false, u.code)).join("")}
         <div class="ajout-zone">
           <h3>Ajouter une mesure de maîtrise</h3>
-          <p class="small muted">Une mesure manque dans ce chapitre ? Formulez-la : elle s'ajoute à la liste et s'évalue comme les autres (${MAX_AJOUTS} au plus par chapitre).</p>
-          ${m.ajouts.map(a => blocMaitrise(a.id, esc(a.texte), a.v, "ajout-v", true, u.code)).join("")}
-          ${m.ajouts.length < MAX_AJOUTS ? `
+          <p class="small muted">Une mesure manque dans ce chapitre ? Formulez-la : elle prend le numéro suivant et s'évalue comme les autres (${MAX_AJOUTS} au plus par chapitre). Chaque risque ajouté en partie 1 figure aussi ici, pour évaluer sa maîtrise.</p>
+          ${m.ajouts.map(a => blocMaitrise(a.id, esc(a.texte), a.v, "ajout-v", true, u.code, a.risque)).join("")}
+          ${m.ajouts.filter(a => !a.risque).length < MAX_AJOUTS ? `
           <form class="q libre" id="f-ajout" autocomplete="off">
             <label for="ajout-texte" class="small muted">Votre mesure</label>
             <div class="ajout-ligne"><input type="text" id="ajout-texte" maxlength="300" placeholder="Ex. Un comité d'audit se réunit chaque trimestre."><button class="btn" type="submit">Ajouter</button></div>
@@ -429,12 +429,12 @@
   function ligne(code) {
     const m = mesU(code), p = S.participant, ma = mesuresAjoutees(m), ra = risquesAjoutes(m);
     return {
-      // Une réponse par personne : la colonne « prenom » porte « Prénom Nom » (80 caractères au plus dans la base),
-      // « societe » ne sert plus (elle portait le groupe).
-      session: SESSION, participant_id: p.id, prenom: nomComplet(p).slice(0, 80), societe: p.societe || null, fonction: p.fonction,
+      // La colonne « societe » porte le groupe du répondant ; « prenom » et « fonction » ne servent plus.
+      session: SESSION, participant_id: p.id, prenom: null, societe: nomComplet(p).slice(0, 120), fonction: null,
       perimetre: p.perimetre, metiers: p.perimetre === "sacicap" ? p.metiers : null, univers: code,
-      // « maitrise » : réponse par mesure (0 à 3, "nsp" ou "na"), plus les mesures ajoutées sous _ajouts (liste {id, texte, v}).
-      // « cotation » : {p, i, t} par risque, plus les risques ajoutés sous _ajouts (liste {id, texte, p, i, t}).
+      // « maitrise » : réponse par mesure (0 à 3, "nsp" ou "na"), plus les mesures ajoutées sous _ajouts (liste {id, texte, v,
+      // risque} ; « risque » désigne le risque ajouté dont la mesure est le miroir).
+      // « cotation » : {p, i, t} par risque, plus les risques ajoutés sous _ajouts (liste {id, texte, p, i, t, mesure}).
       maitrise: ma.length ? { ...m.maitrise, _ajouts: ma } : { ...m.maitrise },
       cotation: ra.length ? { ...m.cotation, _ajouts: ra } : m.cotation, remarques: null, version_ref: S.ref.version
     };
@@ -642,44 +642,53 @@
     if (!ARCHIVE && !S.res.timer && (Number(CFG.rafraichissement) || 0) > 0) S.res.timer = setInterval(chargerResultats, Number(CFG.rafraichissement) * 1000);
   }
 
-  // Nom d'un répondant tel qu'il figure dans la base (colonne « prenom » : prénom et nom)
-  const nomRow = r => String(r.prenom || "").trim() || "Sans nom";
+  // Groupe d'une réponse (colonne « societe »). Les essais du 5 novembre au matin portaient un nom dans « prenom ».
+  const nomRow = r => String(r.societe || r.prenom || "").trim() || "Sans groupe";
   function filtrer(rows) {
     const f = S.res.filtres;
-    return rows.filter(r => (!f.personne || nomRow(r) === f.personne) && (!f.bloc || (parCode(r.univers) || {}).bloc === f.bloc));
+    return rows.filter(r => (!f.groupe || nomRow(r) === f.groupe) && (!f.bloc || (parCode(r.univers) || {}).bloc === f.bloc));
   }
 
-  // Couleur des points de la matrice, lisible sur les quatre fonds de cellule
-  const COULEUR_POINTS = "#3E7A14";
+  // Couleurs des points de la matrice, une par groupe dans l'ordre de societes.json, lisibles sur les quatre fonds de cellule
+  const COULEURS_GROUPES = ["#3E7A14", "#1D5BBF", "#A0287A", "#0E7C86", "#C2410C", "#1F2124"];
 
   function agreger(rows) {
     const U = {}; S.ref.univers.forEach(u => U[u.code] = { u, n: 0, mat: [], parQ: {}, mesuresAjoutees: [], risquesAjoutes: [] });
-    const R = {}; S.ref.univers.forEach(u => u.risques.forEach(r => R[r.id] = { r, u, p: [], i: [], c: [], acc: 0, red: 0 }));
+    const vide = () => { const R = {}; S.ref.univers.forEach(u => u.risques.forEach(r => R[r.id] = { r, u, p: [], i: [], c: [], acc: 0, red: 0 })); return R; };
+    const R = vide(), G = {};   // R : tous groupes confondus (tableaux) ; G : par groupe (matrice, un point par risque et par groupe)
     rows.forEach(row => {
       const cu = U[row.univers]; if (!cu) return;
       cu.n++;
-      const qui = [nomRow(row), row.fonction].filter(Boolean).join(" · ");
-      // Maîtrise : moyenne des réponses notées (0 à 3) de la personne sur l'univers, ramenée entre 0 et 1
+      const qui = nomRow(row);
+      if (!G[qui]) G[qui] = vide();
+      const RG = G[qui];
+      // Maîtrise : moyenne des réponses notées (0 à 3) du répondant sur l'univers, ramenée entre 0 et 1
       const vals = [];
       Object.entries(row.maitrise || {}).forEach(([q, v]) => { if (typeof v === "number" && S.items[q]) { vals.push(v); (cu.parQ[q] = cu.parQ[q] || []).push(v); } });
       if (vals.length) cu.mat.push(moy(vals) / 3);
-      const ajM = row.maitrise && Array.isArray(row.maitrise._ajouts) ? row.maitrise._ajouts : [];
-      ajM.forEach(a => { if (a && typeof a.texte === "string" && a.texte.trim()) cu.mesuresAjoutees.push({ id: a.id || "", texte: a.texte.trim(), v: coteV(a.v) ? a.v : null, qui, date: row.created_at }); });
-      const ajR = row.cotation && Array.isArray(row.cotation._ajouts) ? row.cotation._ajouts : [];
-      ajR.forEach(a => { if (a && typeof a.texte === "string" && a.texte.trim()) cu.risquesAjoutes.push({ id: a.id || "", texte: a.texte.trim(), p: a.p || null, i: a.i || null, t: a.t || null, qui, date: row.created_at }); });
+      const ajM = (row.maitrise && Array.isArray(row.maitrise._ajouts) ? row.maitrise._ajouts : []).filter(a => a && typeof a.texte === "string" && a.texte.trim());
+      const ajR = (row.cotation && Array.isArray(row.cotation._ajouts) ? row.cotation._ajouts : []).filter(a => a && typeof a.texte === "string" && a.texte.trim());
+      ajM.forEach(a => cu.mesuresAjoutees.push({ id: a.id || "", texte: a.texte.trim(), v: coteV(a.v) ? a.v : null, risque: a.risque || "", qui, date: row.created_at }));
+      // Un risque ajouté porte la maîtrise donnée à son item miroir de la partie 2
+      ajR.forEach(a => { const mir = ajM.find(x => x.risque && x.risque === a.id); cu.risquesAjoutes.push({ id: a.id || "", texte: a.texte.trim(), p: a.p || null, i: a.i || null, t: a.t || null, mesure: a.mesure || "", v: mir && coteV(mir.v) ? mir.v : null, qui, date: row.created_at }); });
       Object.entries(row.cotation || {}).forEach(([id, c]) => {
         const cr = R[id]; if (!cr || !c) return;
-        if (c.p && c.i) { cr.p.push(c.p); cr.i.push(c.i); cr.c.push(c.p * c.i); }
+        if (c.p && c.i) [cr, RG[id]].forEach(x => { x.p.push(c.p); x.i.push(c.i); x.c.push(c.p * c.i); });
         if (c.t === "acc") cr.acc++; else if (c.t === "red") cr.red++;
       });
     });
     const stats = x => ({ ...x, n: x.c.length, mp: moy(x.p), mi: moy(x.i), mc: moy(x.c), sd: ecartType(x.c), min: x.c.length ? Math.min(...x.c) : null, max: x.c.length ? Math.max(...x.c) : null, pctRed: (x.acc + x.red) ? x.red / (x.acc + x.red) : null });
     const risques = Object.values(R).map(stats);
     const univers = Object.values(U).map(x => ({ ...x, maturite: moy(x.mat), expo: moy(risques.filter(r => r.u.code === x.u.code && r.n).map(r => r.mc)) }));
-    // Matrice : un point par risque, à la moyenne des réponses retenues (ou aux cotations de la personne filtrée)
-    const serie = { nom: S.res.filtres.personne || "Moyenne des réponses", couleur: COULEUR_POINTS, risques: risques.filter(x => x.n) };
+    // Groupes présents, dans l'ordre de societes.json puis par ordre alphabétique ; la couleur suit cette position
+    const connus = (S.soc && S.soc.groupes) || [];
+    const autres = Object.keys(G).filter(n => !connus.includes(n)).sort((a, b) => a.localeCompare(b, "fr"));
+    const groupes = [...connus.filter(n => G[n]), ...autres].map(nom => {
+      const k = connus.indexOf(nom), idx = k >= 0 ? k : connus.length + autres.indexOf(nom);
+      return { nom, couleur: COULEURS_GROUPES[idx % COULEURS_GROUPES.length], risques: Object.values(G[nom]).map(stats).filter(x => x.n) };
+    });
     return {
-      reponses: univers.reduce((s, u) => s + u.n, 0), univers, risques, groupes: [serie],
+      reponses: univers.reduce((s, u) => s + u.n, 0), univers, risques, groupes,
       cotations: risques.reduce((s, r) => s + r.n, 0),
       maturite: moy(univers.filter(u => u.maturite !== null).map(u => u.maturite)),
       expo: moy(risques.filter(r => r.n).map(r => r.mc)),
@@ -698,7 +707,7 @@
     const W = 640, H = 520, L = 124, B = 46, T = 12, R = 14;
     const pw = W - L - R, ph = H - T - B;
     const sx = v => L + (v - 0.5) / 4 * pw, sy = v => T + ph - (v - 0.5) / 4 * ph;
-    let s = `<svg class="scatter" viewBox="0 0 ${W} ${H}" role="img" aria-label="Matrice des risques : probabilité moyenne en ordonnée, impact moyen en abscisse">`;
+    let s = `<svg class="scatter" viewBox="0 0 ${W} ${H}" role="img" aria-label="Matrice des risques : probabilité moyenne en ordonnée, impact moyen en abscisse, une couleur par groupe">`;
     for (let p = 1; p <= 4; p++) for (let i = 1; i <= 4; i++) s += `<rect x="${sx(i - 0.5) + 1}" y="${sy(p + 0.5) + 1}" width="${pw / 4 - 2}" height="${ph / 4 - 2}" rx="6" class="c-${niveau(p * i).k}"/>`;
     for (let v = 1; v <= 4; v++) {
       s += `<text x="${sx(v)}" y="${H - 26}" text-anchor="middle" class="axl">${v} · ${nomImpact[v]}</text>`;
@@ -706,8 +715,8 @@
     }
     s += `<text x="${L + pw / 2}" y="${H - 8}" text-anchor="middle" class="axt">Impact moyen</text>`;
     s += `<text transform="translate(12 ${T + ph / 2}) rotate(-90)" text-anchor="middle" class="axt">Probabilité moyenne</text>`;
-    // Un point par risque et par série (une seule série depuis le 5 novembre 2026 : la moyenne des réponses).
-    // Avec plusieurs séries, les points d'un même risque se répartissent en anneau autour de sa position.
+    // Un point par risque et par groupe. Les points d'un même risque se répartissent en anneau autour de sa position,
+    // chaque groupe à un angle fixe, pour rester distincts quand les groupes donnent la même cotation.
     const n = groupes.length, pts = [];
     groupes.forEach((g, gi) => {
       const ang = 2 * Math.PI * gi / n, dx = n > 1 ? Math.cos(ang) * 7 : 0, dy = n > 1 ? Math.sin(ang) * 7 : 0;
@@ -736,7 +745,7 @@
   const libMaitrise = v => coteV(v) ? ((S.ref.echelles.maitrise.find(a => String(a.v) === String(v)) || {}).l || "") : "";
   const chipMaitrise = v => coteV(v) ? `<span class="chip ok">${t(libMaitrise(v))}</span>` : '<span class="chip">Non évaluée</span>';
   const libTraitement = x => x === "red" ? "Réduire" : x === "acc" ? "Accepter" : "";
-  const chipRisqueAjoute = x => (x.p && x.i ? `<span class="badge ${niveau(x.p * x.i).k}">Criticité ${x.p * x.i}</span>` : '<span class="chip">Non coté</span>') + (x.t ? ` <span class="chip">${libTraitement(x.t)}</span>` : "");
+  const chipRisqueAjoute = x => (x.p && x.i ? `<span class="badge ${niveau(x.p * x.i).k}">Criticité ${x.p * x.i}</span>` : '<span class="chip">Non coté</span>') + (x.t ? ` <span class="chip">${libTraitement(x.t)}</span>` : "") + (coteV(x.v) ? ` <span class="chip ok">Maîtrise : ${t(libMaitrise(x.v))}</span>` : ' <span class="chip">Maîtrise non évaluée</span>');
 
   function dessinerResultats() {
     const y = window.scrollY;
@@ -744,11 +753,12 @@
     const f = S.res.filtres, seuil = S.res.seuil;
     const all = S.res.rows, rows = filtrer(all), A = agreger(rows);
     const opts = (vals, cur) => vals.map(v => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(v)}</option>`).join("");
-    const personnes = [...new Set(all.map(nomRow))].sort((a, b) => a.localeCompare(b, "fr"));
+    const nomsGroupes = [...new Set(all.map(nomRow))].sort((a, b) => a.localeCompare(b, "fr"));
     const hors = A.risques.filter(r => r.n && r.mc > seuil).sort((a, b) => b.mc - a.mc);
     const top = A.risques.filter(r => r.n).sort((a, b) => b.mc - a.mc || b.n - a.n).slice(0, 10);
     const diverg = A.risques.filter(r => r.n >= 2).sort((a, b) => b.sd - a.sd).slice(0, 6);
-    const mesAj = A.univers.flatMap(u => u.mesuresAjoutees.map(x => ({ ...x, u: u.u })));
+    const mesAj = A.univers.flatMap(u => u.mesuresAjoutees.filter(x => !x.risque).map(x => ({ ...x, u: u.u })));
+    const plusieurs = A.groupes.length > 1;
     const risAj = A.univers.flatMap(u => u.risquesAjoutes.map(x => ({ ...x, u: u.u })));
     const tipP = (r, g) => `${r.r.id} · ${fr(r.r.libelle)}\n${g.nom} : probabilité ${fmt1(r.mp)} · impact ${fmt1(r.mi)} · criticité ${fmt1(r.mc)}\n${r.n} cotation${r.n > 1 ? "s" : ""}`;
     const delai = ARCHIVE ? 0 : Number(CFG.rafraichissement) || 0;
@@ -761,7 +771,7 @@
       ${S.store.isRemote && S.store.protege === false ? '<div class="bandeau">Lecture non protégée : la fonction d\'accès n\'est pas encore installée dans Supabase (exécuter supabase/securite.sql). En attendant, toute personne ayant le lien peut lire les réponses.</div>' : ""}
       ${S.res.erreur ? `<div class="bandeau erreur">${/^Réinitialisation/.test(S.res.erreur) ? "" : "Lecture impossible : "}${esc(S.res.erreur)}</div>` : ""}
       <div class="panel"><div class="filtres">
-        <div><label for="fl-personne">Répondant</label><select id="fl-personne" data-filtre="personne"><option value="">Tous (${personnes.length})</option>${opts(personnes, f.personne)}</select></div>
+        <div><label for="fl-groupe">Groupe</label><select id="fl-groupe" data-filtre="groupe"><option value="">Tous</option>${opts(nomsGroupes, f.groupe)}</select></div>
         <div><label for="fl-bloc">Bloc</label><select id="fl-bloc" data-filtre="bloc"><option value="">Tous</option>${S.ref.blocs.map(b => `<option value="${b.id}"${f.bloc === b.id ? " selected" : ""}>${t(b.nom)}</option>`).join("")}</select></div>
         <div><label for="fl-seuil">Seuil d'appétence</label><select id="fl-seuil" data-seuil>${S.ref.echelles.seuils.map(s => `<option value="${s.v}"${s.v === seuil ? " selected" : ""}>${t(s.l)}</option>`).join("")}</select></div>
         ${ARCHIVE ? "" : '<button class="btn" data-act="rafraichir">Actualiser</button>'}
@@ -788,9 +798,9 @@
         <div class="panel"><h2>Maîtrise des risques par univers</h2><p class="small muted">Moyenne des réponses de maîtrise, de 0 % (aucune mesure en place) à 100 % (toutes formalisées et contrôlées). Les moins maîtrisés en premier.</p>
           ${A.maturite === null ? '<p class="muted">Aucune mesure évaluée pour le moment.</p>' : barres(A.univers.filter(u => u.maturite !== null).sort((a, b) => a.maturite - b.maturite).map(u => ({ lab: u.u.court, v: u.maturite, txt: pct(u.maturite), tip: fr(u.u.nom) + " · " + u.mat.length + " réponse" + (u.mat.length > 1 ? "s" : "") })), { max: 1 })}</div>
       </div>
-      <div class="panel"><h2>Matrice des risques</h2><p class="small muted">${f.personne ? `Chaque point est un risque placé à la probabilité et à l'impact donnés par ${esc(f.personne)}.` : "Chaque point est un risque placé à la probabilité et à l'impact moyens de toutes les réponses."} Les dix plus critiques et ceux qui dépassent le seuil sont nommés, les points cerclés de noir dépassent le seuil ; survolez un point pour le détail.</p>
-        ${matriceSVG(A.groupes, seuil, new Set(top.map(r => r.r.id)), true, tipP)}
-        <div class="legende"><span><i class="sw rond hors"></i>Au-delà du seuil ${seuil}</span><span><i class="sw" style="background:var(--niv-faible-bg)"></i>Faible 1 à 3</span><span><i class="sw" style="background:var(--niv-modere-bg)"></i>Modéré 4 à 6</span><span><i class="sw" style="background:var(--niv-eleve-bg)"></i>Élevé 8 à 9</span><span><i class="sw" style="background:var(--niv-critique-bg)"></i>Critique 12 à 16</span></div>
+      <div class="panel"><h2>Matrice des risques</h2><p class="small muted">${plusieurs ? "Un point par risque et par groupe, placé à la probabilité et à l'impact moyens donnés par ce groupe ; la couleur indique le groupe. Les dix risques les plus critiques sont nommés, les points cerclés de noir dépassent le seuil" : "Chaque point est un risque placé à sa probabilité et son impact moyens. Les dix plus critiques et ceux qui dépassent le seuil sont nommés"} ; survolez un point pour le détail.</p>
+        ${matriceSVG(A.groupes, seuil, new Set(top.map(r => r.r.id)), !plusieurs, tipP)}
+        <div class="legende">${A.groupes.map(g => `<span><i class="sw rond" style="background:${g.couleur}"></i>${esc(g.nom)}</span>`).join("")}<span><i class="sw rond hors"></i>Au-delà du seuil ${seuil}</span><span><i class="sw" style="background:var(--niv-faible-bg)"></i>Faible 1 à 3</span><span><i class="sw" style="background:var(--niv-modere-bg)"></i>Modéré 4 à 6</span><span><i class="sw" style="background:var(--niv-eleve-bg)"></i>Élevé 8 à 9</span><span><i class="sw" style="background:var(--niv-critique-bg)"></i>Critique 12 à 16</span></div>
       </div>
       <div class="panel"><h2>Les dix risques les plus critiques</h2>
         <table class="res"><thead><tr><th>Risque</th><th>Univers</th><th class="num">P</th><th class="num">I</th><th class="num">Criticité</th><th class="num">Réduire</th><th class="num">Cotations</th></tr></thead><tbody>
@@ -806,12 +816,12 @@
       </div>
       <div class="grid2">
         <div class="panel"><h2>Risques ajoutés par les répondants (${risAj.length})</h2>
-          <p class="small muted">Risques jugés manquants dans un chapitre, avec la cotation donnée. Ils n'entrent ni dans les moyennes ni dans la matrice.</p>
-          ${risAj.length ? risAj.map(x => `<div class="remarque"><div class="qui"><strong>${t(x.u.court)}</strong> · ${esc(x.qui)} · ${fmtDate(x.date)}</div><div>${esc(x.texte)} ${chipRisqueAjoute(x)}</div></div>`).join("") : '<p class="muted">Aucun risque ajouté pour le moment.</p>'}
+          <p class="small muted">Risques jugés manquants dans un chapitre, avec la cotation et la maîtrise données. Ils n'entrent ni dans les moyennes ni dans la matrice.</p>
+          ${risAj.length ? risAj.map(x => `<div class="remarque"><div class="qui"><strong>${t(x.u.court)}</strong> · ${esc(x.qui)} · ${fmtDate(x.date)}</div><div><strong>${esc(x.id)}</strong> ${esc(x.texte)} ${chipRisqueAjoute(x)}</div></div>`).join("") : '<p class="muted">Aucun risque ajouté pour le moment.</p>'}
         </div>
         <div class="panel"><h2>Mesures ajoutées par les répondants (${mesAj.length})</h2>
           <p class="small muted">Mesures de maîtrise jugées manquantes dans un chapitre, avec la réponse donnée. Elles n'entrent pas dans la moyenne de maîtrise.</p>
-          ${mesAj.length ? mesAj.map(x => `<div class="remarque"><div class="qui"><strong>${t(x.u.court)}</strong> · ${esc(x.qui)} · ${fmtDate(x.date)}</div><div>${esc(x.texte)} ${chipMaitrise(x.v)}</div></div>`).join("") : '<p class="muted">Aucune mesure ajoutée pour le moment.</p>'}
+          ${mesAj.length ? mesAj.map(x => `<div class="remarque"><div class="qui"><strong>${t(x.u.court)}</strong> · ${esc(x.qui)} · ${fmtDate(x.date)}</div><div><strong>${esc(x.id)}</strong> ${esc(x.texte)} ${chipMaitrise(x.v)}</div></div>`).join("") : '<p class="muted">Aucune mesure ajoutée pour le moment.</p>'}
         </div>
       </div>`;
     app.innerHTML = h; window.scrollTo(0, y);
@@ -828,10 +838,10 @@
   const horodatage = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
 
   function exportBrut(tout, nomFichier) {
-    const rows = tout ? S.res.rows : filtrer(S.res.rows), out = [["Participant", "Prénom et nom", "Fonction", "Métiers", "Univers", "Date", "Type", "Identifiant", "Libellé", "Valeur", "Valeur en clair"]];
+    const rows = tout ? S.res.rows : filtrer(S.res.rows), out = [["Participant", "Groupe", "Métiers", "Univers", "Date", "Type", "Identifiant", "Libellé", "Valeur", "Valeur en clair"]];
     rows.forEach(r => {
       const u = parCode(r.univers); if (!u) return;
-      const base = [r.participant_id, nomRow(r), r.fonction || "", (r.metiers || []).join(", "), u.code, r.created_at || ""];
+      const base = [r.participant_id, nomRow(r), (r.metiers || []).join(", "), u.code, r.created_at || ""];
       u.risques.forEach(rr => { const c = (r.cotation || {})[rr.id]; if (!c) return;
         if (c.p) out.push([...base, "probabilite", rr.id, fr(rr.libelle), c.p, nomProba[c.p] || ""]);
         if (c.i) out.push([...base, "impact", rr.id, fr(rr.libelle), c.i, nomImpact[c.i] || ""]);
@@ -840,7 +850,7 @@
       });
       ((r.cotation || {})._ajouts || []).forEach(a => { if (!a || !a.texte) return; out.push([...base, "risque_ajoute", a.id || "", fr(a.texte), a.p && a.i ? a.p * a.i : "", [a.p ? "probabilité " + a.p : "", a.i ? "impact " + a.i : "", libTraitement(a.t)].filter(Boolean).join(", ")]); });
       u.questions.forEach(q => { const v = (r.maitrise || {})[q.id]; if (!coteV(v)) return; out.push([...base, "maitrise", q.id, fr(q.texte), v, libMaitrise(v)]); });
-      ((r.maitrise || {})._ajouts || []).forEach(a => { if (!a || !a.texte) return; out.push([...base, "mesure_ajoutee", a.id || "", fr(a.texte), a.v ?? "", libMaitrise(a.v)]); });
+      ((r.maitrise || {})._ajouts || []).forEach(a => { if (!a || !a.texte) return; out.push([...base, a.risque ? "maitrise_risque_ajoute" : "mesure_ajoutee", a.id || "", fr(a.texte), a.v ?? "", libMaitrise(a.v)]); });
     });
     telechargerCSV(nomFichier || "carto-reponses-" + horodatage() + ".csv", out);
   }
@@ -865,7 +875,7 @@
     try {
       const r = await S.store.reinitialiserSession(SESSION, cleStockee());
       S.res.archive = { nom: r.archive, lignes: r.lignes, heure: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) };
-      S.res.rows = []; S.res.empreinte = null; S.res.erreur = null; S.res.filtres = { personne: "", bloc: "" };
+      S.res.rows = []; S.res.empreinte = null; S.res.erreur = null; S.res.filtres = { groupe: "", bloc: "" };
       setStatut(S.store.isRemote ? "ok" : "off", S.store.isRemote ? "Connecté" : "Mode local");
       toast("Session réinitialisée : " + r.lignes + " réponse" + (r.lignes > 1 ? "s" : "") + " archivée" + (r.lignes > 1 ? "s" : "") + ".");
       dessinerResultats(); chargerResultats(); verifierRemise();
@@ -889,7 +899,7 @@
     const autres = {}; rows.forEach(r => Object.entries(r.maitrise || {}).forEach(([k, v]) => { if (k.startsWith("_") || typeof v === "number") return; autres[k] = autres[k] || { nsp: 0, na: 0 }; if (v in autres[k]) autres[k][v]++; }));
     A.univers.forEach(u => {
       u.u.questions.forEach(q => { const vals = u.parQ[q.id] || [], cnt = v => vals.filter(x => x === v).length, o = autres[q.id] || { nsp: 0, na: 0 }; out.push([u.u.code, q.id, fr(q.texte), (S.parMesure[q.id] || []).join(", "), vals.length, fmt1(moy(vals)), vals.length ? pct(moy(vals) / 3) : "", cnt(0), cnt(1), cnt(2), cnt(3), o.nsp, o.na]); });
-      u.mesuresAjoutees.forEach(x => out.push([u.u.code, "Mesure ajoutée" + (x.id ? " " + x.id : ""), fr(x.texte) + " (" + x.qui + ")", "", "", typeof x.v === "number" ? x.v : "", libMaitrise(x.v), "", "", "", "", "", ""]));
+      u.mesuresAjoutees.forEach(x => out.push([u.u.code, (x.risque ? "Maîtrise du risque ajouté " + x.risque + " :" : "Mesure ajoutée") + (x.id ? " " + x.id : ""), fr(x.texte) + " (" + x.qui + ")", "", "", typeof x.v === "number" ? x.v : "", libMaitrise(x.v), "", "", "", "", "", ""]));
     });
     telechargerCSV("carto-synthese-maitrise-" + horodatage() + ".csv", out);
   }
@@ -909,7 +919,7 @@
     if (a === "reinit") { S.res.confirmReinit = true; dessinerResultats(); return; }
     if (a === "reinit-non") { S.res.confirmReinit = false; dessinerResultats(); return; }
     if (a === "reinit-ok") { reinitialiser(); return; }
-    if (a === "nouveau") { envoyerSansAttendre(); persist(); chargerRapport(""); S.confirmEffacer = false; render(); toast("Nouvelle réponse : indiquez votre prénom, votre nom et votre fonction."); return; }
+    if (a === "nouveau") { envoyerSansAttendre(); persist(); chargerRapport(""); S.confirmEffacer = false; render(); toast("Nouvelle réponse : choisissez votre groupe."); return; }
     if (a === "reprendre") { envoyerSansAttendre(); persist(); chargerRapport(b.dataset.id); S.confirmEffacer = false; go("/univers"); viderFile(); return; }
     if (a === "effacer-local") { e.preventDefault(); S.confirmEffacer = b.dataset.id || (S.participant && S.participant.id) || false; render(); return; }
     if (a === "effacer-non") { S.confirmEffacer = false; render(); return; }
@@ -926,7 +936,7 @@
     const allumer = on => b.parentElement.querySelectorAll(".pill").forEach(x => x.classList.toggle("on", x === b && on));
     if (a === "ajout-retirer" || a === "ajoutr-retirer") {
       if (a === "ajout-retirer") m.ajouts = m.ajouts.filter(x => x.id !== b.dataset.id);
-      else m.risquesAjoutes = m.risquesAjoutes.filter(x => x.id !== b.dataset.id);
+      else { m.risquesAjoutes = m.risquesAjoutes.filter(x => x.id !== b.dataset.id); m.ajouts = m.ajouts.filter(x => x.risque !== b.dataset.id); }  // le miroir part avec son risque
       m.modifie = Date.now(); persist(); redessinerSaisie(u); planifierEnvoi(u.code); toast(a === "ajout-retirer" ? "Mesure retirée." : "Risque retiré."); return;
     } else if (a === "p" || a === "i" || a === "t") {
       // Un risque ajouté porte sa cotation sur lui-même ; un risque du référentiel dans m.cotation
@@ -952,6 +962,7 @@
   bottom.addEventListener("click", e => { const b = e.target.closest("[data-act=enregistrer]"); if (b) enregistrer(b.dataset.code, b.dataset.suite); });
   app.addEventListener("change", e => {
     const el = e.target;
+    if (el.name === "groupe") { const z = document.getElementById("f-autre-zone"); if (z) { z.classList.toggle("cache", el.value !== "__autre"); if (el.value === "__autre") z.querySelector("input").focus(); } }
     if (el.dataset.filtre !== undefined) { S.res.filtres[el.dataset.filtre] = el.value; dessinerResultats(); }
     if (el.dataset.seuil !== undefined) { S.res.seuil = Number(el.value); dessinerResultats(); }
   });
@@ -960,13 +971,19 @@
     if (e.target.id === "f-ajout" || e.target.id === "f-ajout-r") {
       e.preventDefault(); const r = route(); if (r.name !== "saisie") return;
       const risque = e.target.id === "f-ajout-r";
-      const u = parCode(r.code), m = mesU(r.code), liste = risque ? m.risquesAjoutes : m.ajouts;
+      const u = parCode(r.code), m = mesU(r.code);
       const texte = (e.target.querySelector("input[type=text]").value || "").trim().slice(0, 300);
       if (!texte) { toast(risque ? "Écrivez d'abord le risque à ajouter." : "Écrivez d'abord la mesure à ajouter."); return; }
-      if (liste.length >= MAX_AJOUTS) { toast("Nombre maximal d'ajouts atteint pour ce chapitre."); return; }
-      const id = idAjout(r.code, liste, risque ? "RX" : "X");
-      liste.push({ id, texte }); m.modifie = Date.now(); persist();
-      redessinerSaisie(u); planifierEnvoi(u.code); toast(risque ? "Risque ajouté : cotez-le comme les autres." : "Mesure ajoutée : évaluez-la comme les autres.");
+      if ((risque ? m.risquesAjoutes : m.ajouts.filter(a => !a.risque)).length >= MAX_AJOUTS) { toast("Nombre maximal d'ajouts atteint pour ce chapitre."); return; }
+      const mid = idSuivant(r.code, "M", u.questions, m.ajouts);
+      let id = mid;
+      if (risque) {
+        id = idSuivant(r.code, "R", u.risques, m.risquesAjoutes);
+        m.risquesAjoutes.push({ id, texte, mesure: mid });
+        m.ajouts.push({ id: mid, texte, risque: id });   // item miroir en partie 2
+      } else m.ajouts.push({ id, texte });
+      m.modifie = Date.now(); persist();
+      redessinerSaisie(u); planifierEnvoi(u.code); toast(risque ? "Risque " + id + " ajouté : cotez-le, puis évaluez sa maîtrise en partie 2." : "Mesure " + id + " ajoutée : évaluez-la comme les autres.");
       const el = app.querySelector(risque ? `.risque[data-r="${id}"]` : `.q[data-q="${id}"]`); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
     }
     if (e.target.id === "f-cle") { e.preventDefault(); const v = e.target.querySelector("#cle").value.trim(); if (!v) { toast("Saisissez la clé d'accès."); return; } stockerCle(v); render(); }

@@ -15,7 +15,7 @@ Une adresse sans code, ou avec un code inconnu, affiche « Ce lien n'est pas val
 |---|---|
 | `index.html`, `app.js`, `store.js`, `styles.css` | l'application (JavaScript sans dépendance) |
 | `referentiel.json` | univers, mesures, risques, échelles : commun à toutes les SACICAP (v7 du 5 novembre 2026, revue d'après séminaire) |
-| `societes.json` | menu « Fonction » du formulaire |
+| `societes.json` | menu « Groupe » du formulaire |
 | `config.js` | adresse et clé publique Supabase, seuil par défaut, rafraîchissement |
 | `qr.html` | QR code d'une SACICAP : `qr.html?s=<code>` |
 | `supabase/sessions.sql` | table des sessions SACICAP et contrôle des clés, sans aucune clé |
@@ -34,13 +34,13 @@ Les sessions du séminaire gardent leur fonctionnement. Le script a été éprou
 
 Inscrire une SACICAP : une ligne dans `sessions` (code `sacicap-<nom>-<6 caractères au hasard>`, clé de 10 caractères ou plus). Fermer son formulaire : `update public.sessions set ouverte = false where code = '...'`. Ses résultats restent lisibles.
 
-## Une réponse par personne
+## Une réponse par groupe
 
-Depuis le 5 novembre 2026, chacun répond en son nom : prénom, nom, fonction, puis les métiers exercés par la SACICAP. Il n'y a plus de groupe ni de choix de périmètre. Dans la base, la colonne `prenom` porte « Prénom Nom » et la colonne `societe` reste vide. Les résultats donnent la moyenne de toutes les réponses ; le filtre « Répondant » isole celles d'une personne.
+Le formulaire demande seulement le groupe du répondant (conseil d'administration, comité de direction, collaborateurs, ou « Autre » avec un nom à saisir), puis les métiers exercés par la SACICAP. Dans la base, la colonne `societe` porte le groupe ; `prenom` et `fonction` restent vides. Plusieurs personnes peuvent répondre pour le même groupe : les résultats donnent la moyenne, avec un filtre et une couleur de point par groupe.
 
 ## Deux parties par univers
 
-À la demande de Guillaume Macher (5 novembre 2026), chaque univers se remplit en deux temps : la partie 1 cote les risques (probabilité, impact, accepter ou réduire), la partie 2 évalue la maîtrise, mesure par mesure (non, en partie, formalisé, formalisé et contrôlé, je ne sais pas, non concerné). Chaque partie permet d'ajouter un item, coté comme les autres : un risque (`CODE-RX1`) ou une mesure (`CODE-X1`). Dans la base, `cotation` porte `{p, i, t}` par risque et les risques ajoutés sous `_ajouts` ; `maitrise` porte la réponse par mesure et les mesures ajoutées sous `_ajouts`.
+À la demande de Guillaume Macher (5 novembre 2026), chaque univers se remplit en deux temps : la partie 1 cote les risques (probabilité, impact, accepter ou réduire), la partie 2 évalue la maîtrise, mesure par mesure (non, en partie, formalisé, formalisé et contrôlé, je ne sais pas, non concerné). Chaque partie permet d'ajouter un item, coté comme les autres. Un item ajouté prend le numéro qui suit le dernier du chapitre (`GOV-R8` après `GOV-R7`). Un risque ajouté crée son item miroir en partie 2 : une mesure du même libellé, liée au risque, pour évaluer sa maîtrise ; elle disparaît avec lui. Dans la base, `cotation` porte `{p, i, t}` par risque et les risques ajoutés sous `_ajouts` (`{id, texte, p, i, t, mesure}`) ; `maitrise` porte la réponse par mesure et les mesures ajoutées sous `_ajouts` (`{id, texte, v, risque}`).
 
 ## Sur un même ordinateur
 
